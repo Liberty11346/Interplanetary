@@ -8,7 +8,7 @@ public class selectGameCtrl : MonoBehaviour
 {
     private const int mapCount = 2;
     [SerializeField] private int currentMapNumber;
-    [SerializeField] private UnityEngine.UI.Button nextButton, preButton, menuButton, startButton;
+    [SerializeField] private Button nextButton, preButton, menuButton, startButton;
 
     [System.Serializable]
     struct mapInfo
@@ -36,7 +36,7 @@ public class selectGameCtrl : MonoBehaviour
         soundManager = GameObject.Find("soundManager").GetComponent<soundCtrl>();
 
         // 뮤직 매니저가 게임 음악을 재생중일 경우
-        if( musicManager.isPlayingGame == true )
+        if (musicManager.isPlayingGame == true)
         {
             // 현재 재생중인 음악을 멈추고
             musicManager.musicPlayer.Stop();
@@ -58,10 +58,10 @@ public class selectGameCtrl : MonoBehaviour
         mapNumberText.text = currentMapNumber.ToString(); // 맵 번호 표시
 
         // 버튼 클릭 이벤트 연결
-        nextButton = GameObject.Find("nextButton")?.GetComponent<UnityEngine.UI.Button>();
-        preButton = GameObject.Find("preButton")?.GetComponent<UnityEngine.UI.Button>();
-        menuButton = GameObject.Find("menuButton")?.GetComponent<UnityEngine.UI.Button>();
-        startButton = GameObject.Find("startButton")?.GetComponent<UnityEngine.UI.Button>();
+        nextButton = GameObject.Find("nextButton")?.GetComponent<Button>();
+        preButton = GameObject.Find("preButton")?.GetComponent<Button>();
+        menuButton = GameObject.Find("menuButton")?.GetComponent<Button>();
+        startButton = GameObject.Find("startButton")?.GetComponent<Button>();
 
         if (nextButton != null) nextButton.onClick.AddListener(() => ChangeMap(1));
         if (preButton != null) preButton.onClick.AddListener(() => ChangeMap(-1));

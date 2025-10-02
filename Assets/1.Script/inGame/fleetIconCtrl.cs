@@ -1,8 +1,9 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-public class fleetIconCtrl : MonoBehaviour
+public class fleetIconCtrl : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
     private GameObject infoFleetUI;
     private Image infoFleetImage;
@@ -35,8 +36,7 @@ public class fleetIconCtrl : MonoBehaviour
         
     }
 
-    // 마우스를 올리면 화면 좌측 하단에 함선 정보를 표시 (UI 버튼과 함께 동작)
-    void OnMouseEnter()
+    public void OnPointerEnter(PointerEventData eventData)
     {
         // 함선 능력치 표시
         infoFleetUI.SetActive(true);
@@ -53,8 +53,7 @@ public class fleetIconCtrl : MonoBehaviour
         infoFleetImage.GetComponent<RectTransform>().sizeDelta = myfleetImage.GetComponent<RectTransform>().sizeDelta;
     }
 
-    // 마우스를 치우면 아무것도 안보이게
-    void OnMouseExit()
+    public void OnPointerExit(PointerEventData eventData)
     {
         infoFleetUI.SetActive(false);
     }
