@@ -23,6 +23,7 @@ public class playerGameCtrl : MonoBehaviour
     public planetCtrl playerBase;
     private gameCtrl gameManager;
     private soundCtrl soundManager;
+    [SerializeField] private Button fleetIconQButton, fleetIconWButton, fleetIconEButton, fleetIconRButton;
     void Start()
     {
         // 게임매니저 정보에 접근
@@ -69,6 +70,17 @@ public class playerGameCtrl : MonoBehaviour
 
         // 비활성화된 상태로 시작해야하는데 그렇게 하면 null 에러 일으키는 오브젝트를 게임 시작 후 1프레임 뒤에 비활성화시켜요
         StartCoroutine(newGameReset());
+
+        // 함대 생산 아이콘을 버튼 기반으로 전환
+        fleetIconQButton = GameObject.Find("fleetIconQ")?.GetComponent<Button>();
+        fleetIconWButton = GameObject.Find("fleetIconW")?.GetComponent<Button>();
+        fleetIconEButton = GameObject.Find("fleetIconE")?.GetComponent<Button>();
+        fleetIconRButton = GameObject.Find("fleetIconR")?.GetComponent<Button>();
+
+        if (fleetIconQButton != null) fleetIconQButton.onClick.AddListener(() => { StartCoroutine(ProductFleet(playerScout)); });
+        if (fleetIconWButton != null) fleetIconWButton.onClick.AddListener(() => { StartCoroutine(ProductFleet(playerDestroyer)); });
+        if (fleetIconEButton != null) fleetIconEButton.onClick.AddListener(() => { StartCoroutine(ProductFleet(playerCruiser)); });
+        if (fleetIconRButton != null) fleetIconRButton.onClick.AddListener(() => { StartCoroutine(ProductFleet(playerBattleCruiser)); });
     }
 
     void Update()
@@ -83,7 +95,7 @@ public class playerGameCtrl : MonoBehaviour
                 if( Input.GetMouseButtonDown(0) )
                 {
                     FleetSelectMouse(); // 함대 선택
-                    FleetProductMouse(); // 함대 생산
+                    // 함대 생산은 버튼 onClick으로 처리
                 }
 
                 // 숫자 키를 누르면 부대지정된 함대를 선택

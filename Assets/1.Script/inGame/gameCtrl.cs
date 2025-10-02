@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class gameCtrl : MonoBehaviour
 {
@@ -42,6 +43,30 @@ public class gameCtrl : MonoBehaviour
             musicManager.PlayGameMusic();
             musicManager.isInGame = true;
         }
+
+        // UI 버튼 이벤트 연결
+        var menuBtnComp = menuButton != null ? menuButton.GetComponent<Button>() : null;
+        if (menuBtnComp != null)
+            menuBtnComp.onClick.AddListener(() => {
+                SceneManager.LoadScene("selectGame");
+            });
+
+        var pauseResumeBtn = pauseResume != null ? pauseResume.GetComponent<Button>() : null;
+        if (pauseResumeBtn != null)
+            pauseResumeBtn.onClick.AddListener(() => {
+                Debug.Log("unpaused");
+                pauseScreen.SetActive(false);
+                Time.timeScale = 1;
+                isPaused = false;
+            });
+
+        var pauseMenuBtn = pauseMenu != null ? pauseMenu.GetComponent<Button>() : null;
+        if (pauseMenuBtn != null)
+            pauseMenuBtn.onClick.AddListener(() => {
+                Time.timeScale = 1;
+                isPaused = false;
+                SceneManager.LoadScene("selectGame");
+            });
     }
 
     void Update()
@@ -77,15 +102,7 @@ public class gameCtrl : MonoBehaviour
                     }
                 }
 
-                // 돌아가기 버튼을 누르면 메인 화면으로 이동
-                if( Input.GetMouseButtonDown(0))
-                {
-                    Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-                    RaycastHit2D hit = Physics2D.Raycast(ray.origin, ray.direction);
-
-                    // 버튼을 눌러 메인 화면으로 씬 전환
-                    if( hit.collider != null ) if( hit.collider.gameObject == menuButton ) SceneManager.LoadScene("selectGame");
-                }
+                // 버튼 기반 처리로 전환: menuButton의 onClick으로 처리
             }
 
             // esc 누르면 일시 정지
@@ -99,29 +116,7 @@ public class gameCtrl : MonoBehaviour
         // 일시정지 중인 경우
         else
         {
-            if( Input.GetMouseButtonDown(0) )
-            {
-                Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-                RaycastHit2D hit = Physics2D.Raycast(ray.origin, ray.direction);
-
-                // 버튼을 눌러 일시정지를 해제하거나 게임을 나간다
-                if( hit.collider != null )
-                {
-                    if( hit.collider.gameObject == pauseResume )
-                    {
-                        Debug.Log("unpaused");
-                        pauseScreen.SetActive(false);
-                        Time.timeScale = 1;
-                        isPaused = false;
-                    }
-                    if( hit.collider.gameObject == pauseMenu )
-                    {
-                        Time.timeScale = 1;
-                        isPaused = false;
-                        SceneManager.LoadScene("selectGame");
-                    }
-                }
-            }
+            // 버튼 기반 처리로 전환: pauseResume/pauseMenu의 onClick으로 처리
 
             // 일시정지 중에 esc를 한 번 더 눌러도 해제됨
             if( Input.GetKeyDown(KeyCode.Escape))

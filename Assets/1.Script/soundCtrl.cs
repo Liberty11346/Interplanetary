@@ -3,23 +3,25 @@ using UnityEngine.Assertions.Must;
 
 public class soundCtrl : MonoBehaviour
 {
+    // 싱글톤 인스턴스
+    public static soundCtrl Instance { get; private set; }
+
     [SerializeField] private AudioClip command, select, fleet, fleetError;
     public AudioSource soundPlayer;
     void Awake()
     {
+        // --- 싱글톤 패턴 구현 ---
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+        // -----------------------
         soundPlayer = gameObject.GetComponent<AudioSource>();
     }
 
-    void OnEnable()
-    {
-        // 사운드 매니저 수가 1 초과일 경우, 하나만 남기고 다 지운다.
-        DontDestroyOnLoad(gameObject);
-        if( GameObject.FindGameObjectsWithTag("soundManager").Length > 1 )
-        {
-            for( int i = 1 ; i < GameObject.FindGameObjectsWithTag("soundManager").Length ; i++ )
-                Destroy(GameObject.FindGameObjectsWithTag("soundManager")[i]);
-        }
-    }
     void Start()
     {
         

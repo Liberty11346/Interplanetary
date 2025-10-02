@@ -2,6 +2,9 @@ using UnityEngine;
 
 public class musicCtrl : MonoBehaviour
 {
+    // 싱글톤 인스턴스
+    public static musicCtrl Instance { get; private set; }
+
     [SerializeField] private AudioClip[] mainMusics = new AudioClip[3];
     [SerializeField] private AudioClip[] gameMusics = new AudioClip[4];
     public bool isInGame, isPlayingGame;
@@ -10,20 +13,19 @@ public class musicCtrl : MonoBehaviour
 
     void Awake()
     {
+        // --- 싱글톤 패턴 구현 ---
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+        // -----------------------
+
         musicPlayer = gameObject.GetComponent<AudioSource>();
         isInGame = false;
         isPlayingGame = false;
-    }
-
-    void OnEnable()
-    {
-        // 뮤직 매니저 수가 1 초과일 경우, 하나만 남기고 다 지운다.
-        DontDestroyOnLoad(gameObject);
-        if( GameObject.FindGameObjectsWithTag("musicManager").Length > 1 )
-        {
-            for( int i = 1 ; i < GameObject.FindGameObjectsWithTag("musicManager").Length ; i++ )
-                Destroy(GameObject.FindGameObjectsWithTag("musicManager")[i]);
-        }
     }
 
     void Start()

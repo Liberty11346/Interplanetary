@@ -8,6 +8,7 @@ public class selectGameCtrl : MonoBehaviour
 {
     private const int mapCount = 2;
     [SerializeField] private int currentMapNumber;
+    [SerializeField] private UnityEngine.UI.Button nextButton, preButton, menuButton, startButton;
 
     [System.Serializable]
     struct mapInfo
@@ -55,59 +56,51 @@ public class selectGameCtrl : MonoBehaviour
         mapNameText.text = mapList[currentMapNumber].displayMapName; // 맵 이름 표시
         mapExplainText.text = mapList[currentMapNumber].displayExplain; // 맵 설명 표시
         mapNumberText.text = currentMapNumber.ToString(); // 맵 번호 표시
+
+        // 버튼 클릭 이벤트 연결
+        nextButton = GameObject.Find("nextButton")?.GetComponent<UnityEngine.UI.Button>();
+        preButton = GameObject.Find("preButton")?.GetComponent<UnityEngine.UI.Button>();
+        menuButton = GameObject.Find("menuButton")?.GetComponent<UnityEngine.UI.Button>();
+        startButton = GameObject.Find("startButton")?.GetComponent<UnityEngine.UI.Button>();
+
+        if (nextButton != null) nextButton.onClick.AddListener(() => ChangeMap(1));
+        if (preButton != null) preButton.onClick.AddListener(() => ChangeMap(-1));
+        if (menuButton != null) menuButton.onClick.AddListener(() => { soundManager.PlaySound("command"); SceneManager.LoadScene("mainScreen"); });
+        if (startButton != null) startButton.onClick.AddListener(() => { soundManager.PlaySound("command"); SceneManager.LoadScene(mapList[currentMapNumber].realMapName); });
     }
 
-    void Update()
-    {   
-        if( Input.GetMouseButtonDown(0) )
+    private void ChangeMap(int direction)
+    {
+        // 현재 비동기적 로드된 씬을 해제합니다.
+        SceneManager.UnloadSceneAsync(mapList[currentMapNumber].copyMapName);
+
+        // 맵 번호를 변경합니다.
+        currentMapNumber += direction;
+        if (currentMapNumber < 0)
         {
-            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            RaycastHit2D hit = Physics2D.Raycast(ray.origin, ray.direction);
-            Debug.DrawRay(ray.origin, ray.direction, Color.yellow);
-
-            if( hit.collider != null )
-            {   
-                // 다음 버튼을 누르면
-                if( hit.collider.gameObject.name == "nextButton" )
-                {
-                    // 현재 비동기적 로드된 씬을 해제하고 다음 씬을 비동기적 로드한다.
-                    SceneManager.UnloadSceneAsync(mapList[currentMapNumber].copyMapName);
-                    currentMapNumber = currentMapNumber < mapList.Length-1 ? currentMapNumber + 1 : 0;
-                    StartCoroutine(LoadScene(mapList[currentMapNumber].copyMapName));
-                    soundManager.PlaySound("command"); // 버튼 눌림 사운드
-                }
-
-                // 이전 버튼을 누르면
-                if( hit.collider.gameObject.name == "preButton" )
-                {
-                    // 현재 비동기적 로드된 씬을 해제하고 이전 씬을 비동기적 로드한다.
-                    SceneManager.UnloadSceneAsync(mapList[currentMapNumber].copyMapName);
-                    currentMapNumber = currentMapNumber > 0 ? currentMapNumber - 1 : mapList.Length-1;
-                    StartCoroutine(LoadScene(mapList[currentMapNumber].copyMapName));
-                    soundManager.PlaySound("command"); // 버튼 눌림 사운드
-                }
-
-                // 메인 메뉴 버튼을 누르면 메인 화면으로 간다
-                if( hit.collider.gameObject.name == "menuButton" )
-                {
-                    soundManager.PlaySound("command"); // 버튼 눌림 사운드
-                    SceneManager.LoadScene("mainScreen");
-                }
-
-                // 게임 시작 버튼을 누르면 현재 선택된 게임을 한다
-                if( hit.collider.gameObject.name == "startButton" )
-                {
-                    soundManager.PlaySound("command"); // 버튼 눌림 사운드
-                    SceneManager.LoadScene(mapList[currentMapNumber].realMapName);
-                }
-            }
-            // 현재 비동기 로드된 씬의 카메라가 보고 있는 모습을 표시(미니맵 표시)
-            miniMapViewer.GetComponent<RawImage>().texture = mapList[currentMapNumber].texture;
-            mapNameText.text = mapList[currentMapNumber].displayMapName; // 맵 이름 표시
-            mapExplainText.text = mapList[currentMapNumber].displayExplain; // 맵 설명 표시
-            mapNumberText.text = currentMapNumber.ToString(); // 맵 번호 표시
+            currentMapNumber = mapList.Length - 1;
         }
+        else if (currentMapNumber >= mapList.Length)
+        {
+            currentMapNumber = 0;
+        }
+
+        // 새로운 씬을 로드하고 UI를 업데이트합니다.
+        StartCoroutine(LoadScene(mapList[currentMapNumber].copyMapName));
+        UpdateMapUI();
+        soundManager.PlaySound("command"); // 버튼 눌림 사운드
     }
+
+    private void UpdateMapUI()
+    {
+        // 현재 비동기 로드된 씬의 카메라가 보고 있는 모습을 표시(미니맵 표시)
+        miniMapViewer.GetComponent<RawImage>().texture = mapList[currentMapNumber].texture;
+        mapNameText.text = mapList[currentMapNumber].displayMapName; // 맵 이름 표시
+        mapExplainText.text = mapList[currentMapNumber].displayExplain; // 맵 설명 표시
+        mapNumberText.text = currentMapNumber.ToString(); // 맵 번호 표시
+    }
+
+    // 버튼 기반으로 처리하므로 Update에서의 레이캐스트 입력은 제거
 
     IEnumerator LoadScene(string sceneName)
     {

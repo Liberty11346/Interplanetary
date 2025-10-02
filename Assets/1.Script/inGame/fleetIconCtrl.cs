@@ -35,7 +35,7 @@ public class fleetIconCtrl : MonoBehaviour
         
     }
 
-    // 마우스를 올리면 화면 좌측 하단에 함선 정보를 표시
+    // 마우스를 올리면 화면 좌측 하단에 함선 정보를 표시 (UI 버튼과 함께 동작)
     void OnMouseEnter()
     {
         // 함선 능력치 표시
