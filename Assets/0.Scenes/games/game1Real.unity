@@ -5374,14 +5374,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 4138842161037928782, guid: fecff95a8a514e6478fbbad3e3b095cf, type: 3}
-      propertyPath: m_Interactable
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 8504723380322753118, guid: fecff95a8a514e6478fbbad3e3b095cf, type: 3}
-      propertyPath: m_Enabled
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 8640083977149289931, guid: fecff95a8a514e6478fbbad3e3b095cf, type: 3}
       propertyPath: m_Name
       value: GameCanvas
@@ -16610,8 +16602,8 @@ SceneRoots:
   - {fileID: 6227329325067677781}
   - {fileID: 6227329326620459599}
   - {fileID: 6227329327032033715}
-  - {fileID: 1051674710}
   - {fileID: 1989930429}
   - {fileID: 925175703}
-  - {fileID: 1923530557538521661}
   - {fileID: 2035748184}
+  - {fileID: 1051674710}
+  - {fileID: 1923530557538521661}
