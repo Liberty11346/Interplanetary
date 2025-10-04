@@ -7,7 +7,17 @@ public class mainScreenCtrl : MonoBehaviour
 {
     [SerializeField] private Sprite[] maskList = new Sprite[13];
     [SerializeField] private GameObject titleMask;
-    [SerializeField] private Button startButton, multiPlayButton, endButton;
+
+    [Header("Main Buttons")]
+    [SerializeField] private Button startButton;
+    [SerializeField] private Button multiPlayButton;
+    [SerializeField] private Button endButton;
+
+    [Header("multi Play Buttons")]
+    [SerializeField] private Button hostButton;
+    [SerializeField] private Button joinButton;
+    [SerializeField] private Button backButton;
+
     private soundCtrl soundManager;
     void Start()
     {
@@ -20,11 +30,6 @@ public class mainScreenCtrl : MonoBehaviour
 
         soundManager = GameObject.Find("soundManager").GetComponent<soundCtrl>();
 
-        // 버튼 클릭 이벤트 연결
-        startButton = GameObject.Find("startButton")?.GetComponent<Button>();
-        multiPlayButton = GameObject.Find("MultiPlayButton")?.GetComponent<Button>();
-        endButton = GameObject.Find("endButton")?.GetComponent<Button>();
-
         if (startButton != null)
             startButton.onClick.AddListener(() =>
             {
@@ -36,7 +41,7 @@ public class mainScreenCtrl : MonoBehaviour
             multiPlayButton.onClick.AddListener(() =>
             {
                 soundManager.PlaySound("command");
-                SceneManager.LoadScene("Robby");
+                ToggleMultiplayerButtons(true);
             });
 
         if (endButton != null)
@@ -45,11 +50,63 @@ public class mainScreenCtrl : MonoBehaviour
                 soundManager.PlaySound("command");
                 StartCoroutine(QuitGame());
             });
+
+        if (hostButton != null)
+            hostButton.onClick.AddListener(() =>
+            {
+                soundManager.PlaySound("command");
+                ToRobby(true);
+            });
+
+        if (joinButton != null)
+            joinButton.onClick.AddListener(() =>
+            {
+                soundManager.PlaySound("command");
+                ToRobby(false);
+            });
+        if (backButton != null)
+            backButton.onClick.AddListener(() =>
+            {
+                soundManager.PlaySound("command");
+                ToggleMultiplayerButtons(false);
+            });
     }
 
     IEnumerator QuitGame()
     {
         yield return new WaitForSeconds(0.5f);
         Application.Quit();
+    }
+    /// <summary>
+    /// 멀티플레이 관련 버튼(호스트, 참가, 뒤로가기)의 활성화 상태를 토글합니다.
+    /// </summary>
+    /// <param name="show">true이면 버튼들을 화면에 표시하고, false이면 숨깁니다.</param>
+    void ToggleMultiplayerButtons(bool show)
+    {
+        // .enabled는 버튼의 상호작용만 비활성화할 뿐, 화면에는 계속 보입니다.
+        // .gameObject.SetActive()를 사용해야 오브젝트를 화면에서 숨기거나 표시할 수 있습니다.
+        startButton.gameObject.SetActive(!show);
+        multiPlayButton.gameObject.SetActive(!show);
+        endButton.gameObject.SetActive(!show);
+
+        hostButton.gameObject.SetActive(show);
+        joinButton.gameObject.SetActive(show);
+        backButton.gameObject.SetActive(show);
+    }
+
+    /// <summary>
+    /// 멀티플레이 로비 씬으로 이동합니다.
+    /// </summary>
+    /// <param name="isHost">true이면 방장(Host)으로, false이면 참가자(Join)로 로비에 입장합니다.</param>
+    void ToRobby(bool isHost)
+    {
+        if (isHost)
+        {
+            SceneManager.LoadScene("Robby_Host");
+        }
+        else
+        {
+            SceneManager.LoadScene("Robby_Join");
+        }
     }
 }

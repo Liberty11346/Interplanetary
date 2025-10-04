@@ -29,6 +29,12 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/0.Scenes/miniMaps/game3Copy.unity
     guid: 4f8a192c42b439142b896e635267ec37
+  - enabled: 1
+    path: Assets/0.Scenes/Robby_Host.unity
+    guid: 64483501bcc46af4c957d4d7df9c4d83
+  - enabled: 1
+    path: Assets/0.Scenes/Robby_Join.unity
+    guid: ac0dec6fc7f5fe04eb0daa12c6abe15d
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 3590b91b4603b465dbb4216d601bff33, type: 3}
   m_UseUCBPForAssetBundles: 0
