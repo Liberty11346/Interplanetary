@@ -3,6 +3,9 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
+/// <summary>
+/// 
+/// </summary>
 public class gameCtrl : MonoBehaviour
 {
     public bool isDone, isPrinted, isPaused;
@@ -34,7 +37,7 @@ public class gameCtrl : MonoBehaviour
         musicManager = GameObject.Find("musicManager").GetComponent<musicCtrl>();
 
         // 뮤직 매니저가 메인 화면 음악을 재생중일 경우
-        if( musicManager.isPlayingGame == false )
+        if (musicManager.isPlayingGame == false)
         {
             // 현재 재생중인 음악을 멈추고
             musicManager.musicPlayer.Stop();
@@ -47,13 +50,15 @@ public class gameCtrl : MonoBehaviour
         // UI 버튼 이벤트 연결
         var menuBtnComp = menuButton != null ? menuButton.GetComponent<Button>() : null;
         if (menuBtnComp != null)
-            menuBtnComp.onClick.AddListener(() => {
+            menuBtnComp.onClick.AddListener(() =>
+            {
                 SceneManager.LoadScene("selectGame");
             });
 
         var pauseResumeBtn = pauseResume != null ? pauseResume.GetComponent<Button>() : null;
         if (pauseResumeBtn != null)
-            pauseResumeBtn.onClick.AddListener(() => {
+            pauseResumeBtn.onClick.AddListener(() =>
+            {
                 Debug.Log("unpaused");
                 pauseScreen.SetActive(false);
                 Time.timeScale = 1;
@@ -62,7 +67,8 @@ public class gameCtrl : MonoBehaviour
 
         var pauseMenuBtn = pauseMenu != null ? pauseMenu.GetComponent<Button>() : null;
         if (pauseMenuBtn != null)
-            pauseMenuBtn.onClick.AddListener(() => {
+            pauseMenuBtn.onClick.AddListener(() =>
+            {
                 Time.timeScale = 1;
                 isPaused = false;
                 SceneManager.LoadScene("selectGame");
@@ -72,30 +78,30 @@ public class gameCtrl : MonoBehaviour
     void Update()
     {
         // 일시정지 중이 아닌 경우
-        if( isPaused == false )
+        if (isPaused == false)
         {
             // 상대 행성이 플레이어에게 점령될 경우 플레이어 승리
-            if( enemyManager.enemyBase.captureRate == 501 )
+            if (enemyManager.enemyBase.captureRate == 501)
             {
                 winner = 1;
                 isDone = true;
             }
 
             // 플레이어 행성이 상대에게 점령될 경우 상대 승리
-            if( playerManager.playerBase.captureRate == -501 )
+            if (playerManager.playerBase.captureRate == -501)
             {
                 winner = 2;
                 isDone = true;
             }
 
             // 승리 화면 연출
-            if( isDone == true )
+            if (isDone == true)
             {
                 endBlinder.SetActive(true);
-                if( isPrinted == false )
+                if (isPrinted == false)
                 {
                     isPrinted = true;
-                    switch( winner )
+                    switch (winner)
                     {
                         case 1: StartCoroutine(DisplayVictory()); break;
                         case 2: StartCoroutine(DisplayDefeat()); break;
@@ -106,12 +112,12 @@ public class gameCtrl : MonoBehaviour
             }
 
             // esc 누르면 일시 정지
-            if( Input.GetKeyDown(KeyCode.Escape))
+            if (Input.GetKeyDown(KeyCode.Escape))
             {
                 Time.timeScale = 0;
                 isPaused = true;
                 pauseScreen.SetActive(true);
-            }   
+            }
         }
         // 일시정지 중인 경우
         else
@@ -119,7 +125,7 @@ public class gameCtrl : MonoBehaviour
             // 버튼 기반 처리로 전환: pauseResume/pauseMenu의 onClick으로 처리
 
             // 일시정지 중에 esc를 한 번 더 눌러도 해제됨
-            if( Input.GetKeyDown(KeyCode.Escape))
+            if (Input.GetKeyDown(KeyCode.Escape))
             {
                 Debug.Log("unpaused");
                 pauseScreen.SetActive(false);
@@ -133,7 +139,7 @@ public class gameCtrl : MonoBehaviour
     {
         victorySign.SetActive(true);
         yield return new WaitForSeconds(0.5f);
-        for( float i = 50 ; i < 1500 ; i = 25 + i * 1.25f )
+        for (float i = 50; i < 1500; i = 25 + i * 1.25f)
         {
             victoryClip.sizeDelta = new Vector2(i, 500);
             yield return new WaitForSeconds(0.025f);
@@ -146,7 +152,7 @@ public class gameCtrl : MonoBehaviour
     {
         defeatSign.SetActive(true);
         yield return new WaitForSeconds(0.5f);
-        for( float i = 50 ; i < 1500 ; i = 25 + i * 1.25f )
+        for (float i = 50; i < 1500; i = 25 + i * 1.25f)
         {
             defeatClip.sizeDelta = new Vector2(i, 500);
             yield return new WaitForSeconds(0.025f);
