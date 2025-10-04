@@ -39,7 +39,6 @@ public class planetCtrl : MonoBehaviour
         isNetural = true;
         isPlayerGoal = false;
         isEnemyGoal = false;
-        captureRate = 0; // 점령도를 0으로 초기화합니다.
 
         planetNameText.text = planetName;
 
