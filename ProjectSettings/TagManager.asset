@@ -47,7 +47,13 @@ TagManager:
   - name: Default
     uniqueID: 0
     locked: 0
-  - name: Character
+  - name: Routes-Line
+    uniqueID: 544139075
+    locked: 0
+  - name: Planets
+    uniqueID: 353668247
+    locked: 0
+  - name: Characters
     uniqueID: 2734826681
     locked: 0
   - name: UI

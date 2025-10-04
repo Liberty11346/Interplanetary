@@ -2,24 +2,55 @@ using System;
 using TMPro;
 using UnityEngine;
 
+
+
+
 public class planetCtrl : MonoBehaviour
 {
+    public Sprite sprite;
+    public string planetName;
+    [SerializeField] private SpriteRenderer spriteRenderer;
     public GameObject[] nearPlanet = new GameObject[5];
     public GameObject currentFleet;
     private playerGameCtrl playerManager;
     private enemyGameCtrl enemyManager;
-    public TextMeshPro planetName, mineral, gas, supply, captureRateText;
+    [SerializeField] private TextMeshPro planetNameText, mineral, gas, supply, captureRateText;
     public int mineralAmount, gasAmount, supplyAmount, captureRate = 0;
-    private LineRenderer liner;
+    [SerializeField] private LineRenderer liner;
     public bool isNetural, isPlayerGoal, isEnemyGoal;
-    void Start()
+    public void Start()
     {
         playerManager = GameObject.Find("gameManager(player)").GetComponent<playerGameCtrl>();
         enemyManager = GameObject.Find("gameManager(computer)").GetComponent<enemyGameCtrl>();
+        InitPlanet();
+    }
+
+
+
+    public void InitPlanet()
+    {
+        // 씬에 존재하는 게임오브젝트일 경우에만 이름을 변경합니다. (프리팹 에셋 상태에서는 실행되지 않음)
+        if (gameObject.scene.IsValid())
+        {
+            transform.name = planetName;
+        }
+
         currentFleet = null;
         isNetural = true;
         isPlayerGoal = false;
         isEnemyGoal = false;
+        captureRate = 0; // 점령도를 0으로 초기화합니다.
+
+        planetNameText.text = planetName;
+
+        mineral.text = mineralAmount.ToString();
+        gas.text = gasAmount.ToString();
+        supply.text = supplyAmount.ToString();
+
+        spriteRenderer.sprite = sprite;
+
+        DisaplyCaptureRate();
+
         liner = transform.GetComponent<LineRenderer>();
         DrawLine();
     }
@@ -27,10 +58,10 @@ public class planetCtrl : MonoBehaviour
     void Update()
     {
         // 일시정지 상태가 아닐 때에만 점령됨
-        if( Time.timeScale > 0 )
+        if (Time.timeScale > 0)
         {
             CapturePlanet();
-            DisaplyCaptureRate();   
+            DisaplyCaptureRate();
         }
     }
 
@@ -39,42 +70,42 @@ public class planetCtrl : MonoBehaviour
     void DisaplyCaptureRate()
     {
         // 플레이어가 우세한 경우
-        if( captureRate > 0 )
+        if (captureRate > 0)
         {
             captureRateText.color = Color.cyan;
-            captureRateText.text = Math.Abs(captureRate/5).ToString() + "%";
+            captureRateText.text = Math.Abs(captureRate / 5).ToString() + "%";
         }
         // 상대가 우세한 경우
-        else if (captureRate < 0 )
+        else if (captureRate < 0)
         {
             captureRateText.color = Color.magenta;
-            captureRateText.text = Math.Abs(captureRate/5).ToString() + "%";
+            captureRateText.text = Math.Abs(captureRate / 5).ToString() + "%";
         }
         // 중립인 경우
         else
         {
             captureRateText.color = Color.white;
-            captureRateText.text = Math.Abs(captureRate/5).ToString() + "%";
+            captureRateText.text = Math.Abs(captureRate / 5).ToString() + "%";
         }
     }
 
     // 주변 행성 사이를 잇는 선을 그린다
     // + 행성의 자원 보유량을 표시
-    void DrawLine()
-    {  
+    public void DrawLine()
+    {
         // 주변 행성 수를 센다. (배열에 실제로 들어간 오브젝트의 수를 센다.)
         int planetCount = 0;
-        for( int i = 0 ; i < nearPlanet.Length ; i++ ) if( nearPlanet[i] != null ) planetCount++;
+        for (int i = 0; i < nearPlanet.Length; i++) if (nearPlanet[i] != null) planetCount++;
 
         // 주변 행성 수 * 2개 만큼의 꼭짓점을 준비
-        liner.positionCount = planetCount*2;
+        liner.positionCount = planetCount * 2;
 
         // 자기 자신과 주변 행성을 왔다갔다 하게끔 꼭짓점을 놓는다
         int temp = 0;
-        for( int i = 0 ; i < liner.positionCount ; i += 2 )
+        for (int i = 0; i < liner.positionCount; i += 2)
         {
             liner.SetPosition(i, transform.position);
-            liner.SetPosition(i+1, nearPlanet[temp].transform.position );
+            liner.SetPosition(i + 1, nearPlanet[temp].transform.position);
             temp++;
         }
 
@@ -90,32 +121,32 @@ public class planetCtrl : MonoBehaviour
     }
 
     // 행성 소유자에 따라 색깔 바꾸기
-    public void SwitchColor( int ownPlayer )
+    public void SwitchColor(int ownPlayer)
     {
-        switch ( ownPlayer )
+        switch (ownPlayer)
         {
-            case 1: planetName.color = Color.cyan; break; // 플레이어
-            case 2: planetName.color = Color.magenta; break; // 상대
-            default: planetName.color = Color.white; break; // 중립
+            case 1: planetNameText.color = Color.cyan; break; // 플레이어
+            case 2: planetNameText.color = Color.magenta; break; // 상대
+            default: planetNameText.color = Color.white; break; // 중립
         }
     }
 
-    void OnTriggerStay2D( Collider2D other )
+    void OnTriggerStay2D(Collider2D other)
     {
         // 현재 행성에 상주 함대가 없을 경우
-        if( currentFleet == null )
-        {   
+        if (currentFleet == null)
+        {
             // 상주 함대를 충돌한 함대로 설정
-            if( other.tag == "playerFleet") currentFleet = other.gameObject;
-            if( other.tag == "enemyFleet") currentFleet = other.gameObject;
+            if (other.tag == "playerFleet") currentFleet = other.gameObject;
+            if (other.tag == "enemyFleet") currentFleet = other.gameObject;
         }
     }
 
     // 함대가 행성을 벗어남 감지
-    void OnTriggerExit2D( Collider2D other )
+    void OnTriggerExit2D(Collider2D other)
     {
         // 벗어난 함대가 현재 함대라면
-        if( other.gameObject == currentFleet )
+        if (other.gameObject == currentFleet)
         {
             // 상주 함대 없음으로 설정
             currentFleet = null;
@@ -124,23 +155,23 @@ public class planetCtrl : MonoBehaviour
 
     void CapturePlanet()
     {
-        if( currentFleet != null )
+        if (currentFleet != null)
         {
             // 플레이어 함선이 행성 내에 있을 경우 플레이어가 행성을 점령
-            if( currentFleet.tag == "playerFleet" )
+            if (currentFleet.tag == "playerFleet")
             {
-                if( captureRate < 500 ) captureRate++;
-                else if( captureRate == 500 )
+                if (captureRate < 500) captureRate++;
+                else if (captureRate == 500)
                 {
                     CaptureByPlayer();
                     captureRate++;
                 }
             }
             // 상대 함선이 행성 내에 있을 경우 상대가 행성을 점령
-            else if( currentFleet.tag == "enemyFleet" )
+            else if (currentFleet.tag == "enemyFleet")
             {
-                if( captureRate > -500 ) captureRate--;
-                else if( captureRate == -500 )
+                if (captureRate > -500) captureRate--;
+                else if (captureRate == -500)
                 {
                     CaptureByEnemy();
                     captureRate--;
@@ -154,24 +185,24 @@ public class planetCtrl : MonoBehaviour
     {
         // 이미 플레이어에게 점령된 상태라면 또 점령되지 않음
         bool isCapturedTwice = false;
-        for( int i = 0 ; i < playerManager.playerPlanet.Length ; i++ )
+        for (int i = 0; i < playerManager.playerPlanet.Length; i++)
         {
-            if( playerManager.playerPlanet[i] == gameObject )
+            if (playerManager.playerPlanet[i] == gameObject)
             {
                 isCapturedTwice = true;
                 break;
             }
         }
-        
+
         // 중립이 아닌 상태에서 새롭게 점령된 상태라면
-        if( isNetural == false )
+        if (isNetural == false)
         {
-            if( isCapturedTwice == false )
+            if (isCapturedTwice == false)
             {
                 // 상대 소유 행성 배열에서 스스로를 제거
-                for( int i = 0 ; i < enemyManager.enemyPlanet.Length ; i++ )
+                for (int i = 0; i < enemyManager.enemyPlanet.Length; i++)
                 {
-                    if( enemyManager.enemyPlanet[i] == gameObject )
+                    if (enemyManager.enemyPlanet[i] == gameObject)
                     {
                         enemyManager.enemyPlanet[i] = null;
                         break;
@@ -179,9 +210,9 @@ public class planetCtrl : MonoBehaviour
                 }
 
                 // 플레이어 소유 행성 배열에 들어감
-                for( int i = 0 ; i < playerManager.playerPlanet.Length ; i++ )
+                for (int i = 0; i < playerManager.playerPlanet.Length; i++)
                 {
-                    if( playerManager.playerPlanet[i] == null )
+                    if (playerManager.playerPlanet[i] == null)
                     {
                         playerManager.playerPlanet[i] = gameObject;
                         break;
@@ -200,9 +231,9 @@ public class planetCtrl : MonoBehaviour
             isNetural = false; // 중립 상태 해제
 
             // 플레이어 소유 행성 배열에 들어감
-            for( int i = 0 ; i < playerManager.playerPlanet.Length ; i++ )
+            for (int i = 0; i < playerManager.playerPlanet.Length; i++)
             {
-                if( playerManager.playerPlanet[i] == null )
+                if (playerManager.playerPlanet[i] == null)
                 {
                     playerManager.playerPlanet[i] = gameObject;
                     break;
@@ -219,9 +250,9 @@ public class planetCtrl : MonoBehaviour
     {
         // 이미 상대에게 점령된 상태라면 또 점령되지 않음
         bool isCapturedTwice = false;
-        for( int i = 0 ; i < enemyManager.enemyPlanet.Length ; i++ )
+        for (int i = 0; i < enemyManager.enemyPlanet.Length; i++)
         {
-            if( enemyManager.enemyPlanet[i] == gameObject )
+            if (enemyManager.enemyPlanet[i] == gameObject)
             {
                 isCapturedTwice = true;
                 break;
@@ -229,14 +260,14 @@ public class planetCtrl : MonoBehaviour
         }
 
         // 중립이 아닌 상태에서 새롭게 점령된 상태라면
-        if( isNetural == false )
+        if (isNetural == false)
         {
-            if( isCapturedTwice == false )
+            if (isCapturedTwice == false)
             {
                 // 플레이어 소유 행성 배열에서 스스로를 제거
-                for( int i = 0 ; i < playerManager.playerPlanet.Length ; i++ )
+                for (int i = 0; i < playerManager.playerPlanet.Length; i++)
                 {
-                    if( playerManager.playerPlanet[i] == gameObject )
+                    if (playerManager.playerPlanet[i] == gameObject)
                     {
                         playerManager.playerPlanet[i] = null;
                         break;
@@ -244,9 +275,9 @@ public class planetCtrl : MonoBehaviour
                 }
 
                 // 상대 소유 행성 배열에 들어감
-                for( int i = 0 ; i < enemyManager.enemyPlanet.Length ; i++ )
+                for (int i = 0; i < enemyManager.enemyPlanet.Length; i++)
                 {
-                    if( enemyManager.enemyPlanet[i] == null )
+                    if (enemyManager.enemyPlanet[i] == null)
                     {
                         enemyManager.enemyPlanet[i] = gameObject;
                         break;
@@ -265,9 +296,9 @@ public class planetCtrl : MonoBehaviour
             isNetural = false; // 중립 상태 해제
 
             // 상대 소유 행성 배열에 들어감
-            for( int i = 0 ; i < enemyManager.enemyPlanet.Length ; i++ )
+            for (int i = 0; i < enemyManager.enemyPlanet.Length; i++)
             {
-                if( enemyManager.enemyPlanet[i] == null )
+                if (enemyManager.enemyPlanet[i] == null)
                 {
                     enemyManager.enemyPlanet[i] = gameObject;
                     break;

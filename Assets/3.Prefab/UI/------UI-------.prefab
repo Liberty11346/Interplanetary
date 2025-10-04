@@ -86,7 +86,7 @@ GameObject:
   - component: {fileID: 205813593354480175}
   - component: {fileID: 1895895013933916076}
   - component: {fileID: 4568216445836809014}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: pauseText
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -754,7 +754,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4574857330075584387}
   - component: {fileID: 7182464365602039700}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: ------UI-------
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -819,7 +819,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5092716566835079100}
   - component: {fileID: 8411087173183191635}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: PlayerResources
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1824,7 +1824,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4295667659932007478}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: pauseScreen
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -6522,7 +6522,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8526174549566135599}
   - component: {fileID: 1705647919432326142}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Buttons
   m_TagString: Untagged
   m_Icon: {fileID: 0}

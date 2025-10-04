@@ -256,31 +256,9 @@ MonoBehaviour:
   menuButton: {fileID: 704672136}
   startButton: {fileID: 1955246181}
   mapList:
-  - texture: {fileID: 8400000, guid: 3978f769bf5584f4baea3040076f93cc, type: 2}
-    copyMapName: game2Copy
-    realMapName: game2Real
-    displayMapName: TRAINNING SCHOOL
-    displayExplain: "\uC9E7\uC740 \uC804\uD22C\uB97C \uD1B5\uD574 \uAC8C\uC784\uC758
-      \uAE30\uCD08\uB97C \uBC30\uC6C1\uB2C8\uB2E4."
-  - texture: {fileID: 8400000, guid: 338de79668b0d434fa128b62a59f3439, type: 2}
-    copyMapName: game1Copy
-    realMapName: game1Real
-    displayMapName: RUERY SPACE
-    displayExplain: "\uC778\uB958\uAC00 \uCC98\uC74C\uC73C\uB85C \uC9C4\uCD9C\uD55C
-      \uD589\uC131\uACC4.\n\uBE44\uB85D \uD604\uC7AC\uB294 \uADF8 \uCC2C\uB780\uD568\uC744
-      \uC783\uC5C8\uC9C0\uB9CC\n\uC5EC\uC804\uD788 \uB9CE\uC740 \uC774\uB4E4\uC758
-      \uAFC8\uACFC \uD76C\uB9DD\uC774 \uC11C\uB824\uC788\uB2E4."
-  - texture: {fileID: 8400000, guid: b0767334b9fb3224eb9bab41bb16f8ae, type: 2}
-    copyMapName: game3Copy
-    realMapName: game3Real
-    displayMapName: TWISTED LIBRA SECTOR
-    displayExplain: "\uCD08\uAE30\uC5D0\uB294 \uAC00\uC9C0\uB7F0\uD55C \uCC9C\uCE6D\uACFC
-      \uAC19\uC740 \uBAA8\uC2B5\uC774\uC5C8\uC73C\uB098,\n\uC778\uACF5 \uBE14\uB799\uD640
-      \uC2E4\uD5D8\uC7A5\uC73C\uB85C \uD65C\uC6A9\uB418\uBA74\uC11C \uD604\uC7AC\uC640
-      \uAC19\uC740 \uBAA8\uC2B5\uC744 \uAC16\uCDC4\uB2E4.\n\uC778\uACF5 \uBE14\uB799\uD640
-      \uC2E4\uD5D8\uC740 \uC624\uB798 \uC804\uC5D0 \uC911\uB2E8\uB418\uC5C8\uC9C0\uB9CC\n\uADF8
-      \uC5EC\uD30C\uB85C \uC778\uD574 \uD589\uC131 \uAC04 \uD6A8\uC728\uC801\uC778
-      \uC774\uB3D9\uC774 \uBD88\uAC00\uB2A5\uD55C \uC0C1\uD0DC\uB2E4."
+  - {fileID: 11400000, guid: 5b4cb9837473c4a4d913784ec53dccce, type: 2}
+  - {fileID: 11400000, guid: e79121812a7cb904cb37728e6209ee4d, type: 2}
+  - {fileID: 11400000, guid: a57d57592752a9f4ab4529d88068f593, type: 2}
   miniMapViewer: {fileID: 1985917349}
   mapNameText: {fileID: 0}
   mapExplainText: {fileID: 0}

@@ -3,29 +3,35 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
 using TMPro;
+using System.Linq; // OrderBy를 사용하기 위해 추가
 
 public class selectGameCtrl : MonoBehaviour
 {
-    private const int mapCount = 2;
     [SerializeField] private int currentMapNumber;
     [SerializeField] private Button nextButton, preButton, menuButton, startButton;
 
-    [System.Serializable]
-    struct mapInfo
-    {
-        public RenderTexture texture;
-        public string copyMapName; // 미니맵 씬의 이름
-        public string realMapName; // 실제 게임할 씬의 이름
-        public string displayMapName; // 플레이어에게 보이는 맵 이름
-        [TextArea] public string displayExplain; // 플레이어에게 보여지는 맵 설명
-    }
-    [SerializeField] private mapInfo[] mapList = new mapInfo[mapCount];
+    // 인스펙터에서 할당받는 대신 코드로 불러옵니다.
+    private MapData[] mapList;
+
     [SerializeField] private GameObject miniMapViewer;
     [SerializeField] private TextMeshProUGUI mapNameText, mapExplainText, mapNumberText;
     private musicCtrl musicManager;
     private soundCtrl soundManager;
     void Start()
     {
+        // Resources/MapData 폴더에서 모든 MapData 에셋을 불러옵니다.
+        mapList = Resources.LoadAll<MapData>("MapData");
+
+        // 불러온 맵들을 이름순으로 정렬하여 항상 일관된 순서를 유지합니다.
+        if (mapList.Length > 0)
+        {
+            mapList = mapList.OrderBy(map => map.name).ToArray();
+        }
+        else
+        {
+            Debug.LogError("Resources/MapData 폴더에 MapData 에셋이 없습니다. 해당 경로에 에셋을 추가해주세요.");
+        }
+
         // 맵 이름 및 설명 표시 텍스트에 접근
         mapNameText = GameObject.Find("mapNameText").GetComponent<TextMeshProUGUI>();
         mapExplainText = GameObject.Find("mapExplainText").GetComponent<TextMeshProUGUI>();
@@ -49,13 +55,8 @@ public class selectGameCtrl : MonoBehaviour
         // 기본적으로 첫번째 맵이 선택됨
         currentMapNumber = 0;
 
-        // 기본적으로 첫번째 맵의 미리보기 씬을 비동기 로드함
-        StartCoroutine(LoadScene(mapList[currentMapNumber].copyMapName));
-        // 현재 비동기 로드된 씬의 카메라가 보고 있는 모습을 표시(미니맵 표시)
-        miniMapViewer.GetComponent<RawImage>().texture = mapList[currentMapNumber].texture;
-        mapNameText.text = mapList[currentMapNumber].displayMapName; // 맵 이름 표시
-        mapExplainText.text = mapList[currentMapNumber].displayExplain; // 맵 설명 표시
-        mapNumberText.text = currentMapNumber.ToString(); // 맵 번호 표시
+        // 첫 번째 맵의 UI를 표시
+        UpdateMapUI();
 
         // 버튼 클릭 이벤트 연결
         nextButton = GameObject.Find("nextButton")?.GetComponent<Button>();
@@ -71,9 +72,6 @@ public class selectGameCtrl : MonoBehaviour
 
     private void ChangeMap(int direction)
     {
-        // 현재 비동기적 로드된 씬을 해제합니다.
-        SceneManager.UnloadSceneAsync(mapList[currentMapNumber].copyMapName);
-
         // 맵 번호를 변경합니다.
         currentMapNumber += direction;
         if (currentMapNumber < 0)
@@ -85,29 +83,24 @@ public class selectGameCtrl : MonoBehaviour
             currentMapNumber = 0;
         }
 
-        // 새로운 씬을 로드하고 UI를 업데이트합니다.
-        StartCoroutine(LoadScene(mapList[currentMapNumber].copyMapName));
+        // 새로운 맵의 UI를 업데이트합니다.
         UpdateMapUI();
         soundManager.PlaySound("command"); // 버튼 눌림 사운드
     }
 
     private void UpdateMapUI()
     {
-        // 현재 비동기 로드된 씬의 카메라가 보고 있는 모습을 표시(미니맵 표시)
-        miniMapViewer.GetComponent<RawImage>().texture = mapList[currentMapNumber].texture;
-        mapNameText.text = mapList[currentMapNumber].displayMapName; // 맵 이름 표시
-        mapExplainText.text = mapList[currentMapNumber].displayExplain; // 맵 설명 표시
-        mapNumberText.text = currentMapNumber.ToString(); // 맵 번호 표시
-    }
+        if (mapList == null || mapList.Length == 0)
+        {
+            Debug.LogError("Map List가 비어있습니다. MapData 에셋을 할당해주세요.");
+            return;
+        }
 
-    // 버튼 기반으로 처리하므로 Update에서의 레이캐스트 입력은 제거
-
-    IEnumerator LoadScene(string sceneName)
-    {
-        // 비동기적으로 씬 로드 시작
-        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
-
-        // 씬 로드가 완료될 때까지 대기
-        while (!asyncLoad.isDone) yield return null;
+        // MapData에서 정보를 가져와 UI를 업데이트합니다.
+        MapData currentMap = mapList[currentMapNumber];
+        miniMapViewer.GetComponent<RawImage>().texture = currentMap.mapPreviewImage;
+        mapNameText.text = currentMap.displayMapName;
+        mapExplainText.text = currentMap.displayExplain;
+        mapNumberText.text = (currentMapNumber + 1).ToString(); // 0부터 시작하므로 +1
     }
 }
