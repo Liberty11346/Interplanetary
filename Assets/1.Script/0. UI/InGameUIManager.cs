@@ -45,18 +45,23 @@ namespace UI
             DontDestroyOnLoad(gameObject);
             // -----------------------
 
+            // playerGameController가 인스펙터에서 할당되지 않았을 경우를 대비한 안전장치
+            if (playerGameController == null)
+            {
+
+                playerGameController = GameObject.Find("gameManager(player)").GetComponent<playerGameCtrl>();
+                if (playerGameController == null)
+                {
+                    Debug.Log("seems something wrong..");
+                }
+            }
+
             victoryClip = victorySign != null ? victorySign.GetComponent<RectTransform>() : null;
             defeatClip = defeatSign != null ? defeatSign.GetComponent<RectTransform>() : null;
         }
 
         void Start()
         {
-            // playerGameController가 인스펙터에서 할당되지 않았을 경우를 대비한 안전장치
-            if (playerGameController == null)
-            {
-                playerGameController = FindObjectOfType<playerGameCtrl>();
-            }
-
             // lazy thing.. 
             StartCoroutine(newGameReset());
         }

@@ -195,6 +195,7 @@ public class playerGameCtrl : MonoBehaviour
 
     public IEnumerator ProductFleet(GameObject fleet)
     {
+        Debug.Log("" + fleet.name);
         // 생산중인 함대가 없을 때에만 생산 가능
         if (productingFleet == null)
         {
