@@ -7,6 +7,7 @@ using UnityEngine.UI;
 
 public class playerGameCtrl : MonoBehaviour
 {
+    public static playerGameCtrl Instance;
     public GameObject selectedFleet;
     public GameObject[] fleetSlot = new GameObject[5];
     public GameObject[] playerPlanet;
@@ -19,14 +20,32 @@ public class playerGameCtrl : MonoBehaviour
     public planetCtrl playerBase;
     private gameCtrl gameManager; // UI 관련 요소 주석 처리
     private soundCtrl soundManager;
+    private PlayerInputManager playerInputManager;
     // [SerializeField] private Button fleetIconQButton, fleetIconWButton, fleetIconEButton, fleetIconRButton;
-    void Start()
-    {
-        // 게임매니저 정보에 접근
-        gameManager = GameObject.Find("gameManager").GetComponent<gameCtrl>();
 
-        // 사운드매니저 정보에 접근
-        soundManager = GameObject.Find("soundManager").GetComponent<soundCtrl>();
+    private void Awake()
+    {
+        if( Instance != null && Instance != this )
+        {
+            Destroy(gameObject);
+        }
+        else
+        {
+            Instance = this;
+        }
+    }
+    private void Start()
+    {
+        // 각 매니저 클래스의 인스턴스에 접근
+        gameManager = gameCtrl.Instance; // 게임 매니저
+        soundManager = soundCtrl.Instance; // 사운드 매니저
+        playerInputManager = PlayerInputManager.Instance; // 플레이어 입력 매니저
+
+        // 플레이어 입력 매니저 구독
+        playerInputManager.OnFleetSaveSlot += FleetSaveSlot; // 함선 부대지정
+        playerInputManager.OnFleetSelectedByKeyboard += FleetSelectNumber; // 함선 선택 (키보드)
+        playerInputManager.OnFleetSelectedByMouse += FleetSelectMouse; // 함선 선택 (마우스)
+        playerInputManager.OnFleetProducted += ProductFleet; // 함선 생산
 
         // 플레이어가 점령 가능한 행성의 최대치는 맵에 있는 행성 수와 같다
         playerPlanet = new GameObject[GameObject.FindGameObjectsWithTag("planet").Length];
@@ -45,106 +64,41 @@ public class playerGameCtrl : MonoBehaviour
         playerMaxSupply = playerBase.supplyAmount;
         playerCurrentSupply = 0;
         DisplayResource();
+        DisplayCurrentFleetStatus();
 
         // 자원 채취 시작
         StartCoroutine(GetResource());
-
     }
 
-    void Update()
+    // 부대지정
+    private void FleetSaveSlot(int num)
     {
-        // 게임 중일 때
-        if (gameManager.isDone == false)
-        {
-            // 일시정지 상태가 아닌 경우
-            if (Time.timeScale > 0)
-            {
-                // 마우스를 왼쪽 클릭해서
-                if (Input.GetMouseButtonDown(0))
-                {
-                    FleetSelectMouse(); // 함대 선택
-                    // 함대 생산은 버튼 onClick으로 처리
-                }
-
-                // 숫자 키를 누르면 부대지정된 함대를 선택
-                if (Input.GetKey(KeyCode.LeftShift) == false) FleetSelectNumber();
-
-                // Q W E R 버튼을 눌러서 함대 생산
-                if (Input.GetKeyDown(KeyCode.Q)) StartCoroutine(ProductFleet(playerScout));
-                if (Input.GetKeyDown(KeyCode.W)) StartCoroutine(ProductFleet(playerDestroyer));
-                if (Input.GetKeyDown(KeyCode.E)) StartCoroutine(ProductFleet(playerCruiser));
-                if (Input.GetKeyDown(KeyCode.R)) StartCoroutine(ProductFleet(playerBattleCruiser));
-            }
-        }
+        fleetSlot[num] = selectedFleet;
     }
 
     // 마우스를 왼쪽 클릭해서 함대를 선택 
-    void FleetSelectMouse()
+    private void FleetSelectMouse(GameObject fleet)
     {
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        RaycastHit2D[] hit = Physics2D.RaycastAll(ray.origin, ray.direction);
+        // 함선 선택
+        selectedFleet = fleet;
 
-        for (int i = 0; i < hit.Length; i++)
-        {
-            if (hit[i].collider != null)
-            {
-                // 함대를 클릭하면 해당 함대를 선택
-                if (hit[i].collider.tag == "playerFleet")
-                {
-                    selectedFleet = hit[i].collider.gameObject;
-                    soundManager.PlaySound("select"); // 함대 선택 사운드
-                }
-                if (hit[i].collider.tag == "enemyFleet") selectedFleet = hit[i].collider.gameObject;
-            }
-            DisplayCurrentFleetStatus();
-        }
-
-        // 빈 곳을 클릭하면 선택 해제
-        if (hit.Length == 0)
-        {
-            selectedFleet = null;
-            DisplayCurrentFleetStatus();
-        }
+        // 소리 재생
+        if( selectedFleet != null ) soundManager.PlaySound("select");
+        
+        // 선택된 함선 정보 보여주기
+        DisplayCurrentFleetStatus();
     }
 
     // 숫자 키를 눌러서 부대지정된 함대를 선택
-    void FleetSelectNumber()
+    private void FleetSelectNumber(int num)
     {
-        if (Input.GetKeyDown(KeyCode.Alpha1))
-        {
-            selectedFleet = fleetSlot[0];
-            // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
-        }
+        // 함선 선택
+        selectedFleet = fleetSlot[num];
+        
+        // 소리 재생
+        if( selectedFleet != null ) soundManager.PlaySound("select");
 
-        if (Input.GetKeyDown(KeyCode.Alpha2))
-        {
-            selectedFleet = fleetSlot[1];
-            // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
-        }
-
-        if (Input.GetKeyDown(KeyCode.Alpha3))
-        {
-            selectedFleet = fleetSlot[2];
-            // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
-        }
-
-        if (Input.GetKeyDown(KeyCode.Alpha4))
-        {
-            selectedFleet = fleetSlot[3];
-            // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
-        }
-
-        if (Input.GetKeyDown(KeyCode.Alpha5))
-        {
-            selectedFleet = fleetSlot[4];
-            // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
-        }
-
+        // 선택된 함선 정보 보여주기
         DisplayCurrentFleetStatus();
     }
 
@@ -188,12 +142,23 @@ public class playerGameCtrl : MonoBehaviour
     }
 
     // 현재 선택된 함대의 정보를 보여준다
-    void DisplayCurrentFleetStatus()
+    public void DisplayCurrentFleetStatus()
     {
         InGameUIManager.Instance?.DisplayCurrentFleetStatus(selectedFleet, fleetSlot);
     }
 
-    public IEnumerator ProductFleet(GameObject fleet)
+    public void ProductFleet(int num)
+    {
+        switch( num )
+        {
+            case 0: StartCoroutine(ProductFleet(playerScout)); break;
+            case 1: StartCoroutine(ProductFleet(playerDestroyer)); break;
+            case 2: StartCoroutine(ProductFleet(playerCruiser)); break;
+            case 3: StartCoroutine(ProductFleet(playerBattleCruiser)); break;
+        }
+    }
+
+    private IEnumerator ProductFleet(GameObject fleet)
     {
         // 생산중인 함대가 없을 때에만 생산 가능
         if (productingFleet == null)

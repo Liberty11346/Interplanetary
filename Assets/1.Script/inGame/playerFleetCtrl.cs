@@ -10,13 +10,17 @@ public class playerFleetCtrl : MonoBehaviour
     private float moveSpeed;
     public GameObject currentPlanet, startPlanet, goalPlanet, selectedSign, fleetDeadEffect;
     private playerGameCtrl playerManager;
+    private PlayerInputManager playerInputManager;
+    private soundCtrl soundManager;
     public string fleetName;
-    [SerializeField] private AudioClip command, fight;
-    private AudioSource sound;
     void Start()
     {   
-        playerManager = GameObject.Find("gameManager(player)").GetComponent<playerGameCtrl>();
-        sound = gameObject.GetComponent<AudioSource>();
+        playerManager = playerGameCtrl.Instance;
+        playerInputManager = PlayerInputManager.Instance;
+        soundManager = soundCtrl.Instance;
+
+        // 플레이어 입력 매니저 구독
+        playerInputManager.OnPlanetSelected += SetMoveTarget;
 
         isSelected = false;
         isMoving = false;
@@ -27,7 +31,6 @@ public class playerFleetCtrl : MonoBehaviour
         currentPlanet = playerManager.playerBasePlanet;
     }
 
-
     void Update()
     {
         // 게임매니저에서 자신이 선택된 상태인지 확인
@@ -35,17 +38,8 @@ public class playerFleetCtrl : MonoBehaviour
         if( isSelected == true ) if( playerManager.selectedFleet != gameObject ) isSelected = false;
         selectedSign.SetActive(isSelected);
 
-        // 선택된 상태라면
-        if( isSelected == true ) 
-        { 
-            SetMoveTarget(); // 목적지 설정 가능
-            if( Input.GetKey(KeyCode.LeftShift) == true ) SaveSlot(); // 왼쪽 컨트롤 + 숫자 버튼을 눌러 부대지정 가능
-        }
-
         // 이동중인 상태라면 목적지로 이동
-        if( isMoving == true )
-            transform.position = Vector2.MoveTowards(transform.position, goalPlanet.transform.position, moveSpeed * Time.deltaTime);
-        
+        if( isMoving == true ) transform.position = Vector2.MoveTowards(transform.position, goalPlanet.transform.position, moveSpeed * Time.deltaTime);
     }
 
     void OnTriggerEnter2D( Collider2D other )
@@ -114,8 +108,7 @@ public class playerFleetCtrl : MonoBehaviour
             RotateFleet(other.gameObject); // 전투 대상을 바라봄
 
             // 전투 소리 재생
-            sound.clip = fight;
-            sound.Play();
+            soundManager.PlaySound("fight");
             yield return new WaitForSeconds(1f);
 
             if( other != null ) defence -= other.GetComponent<enemyFleetCtrl>().attack; // 함대의 방어력을 상대의 공격력 만큼 깎고
@@ -141,64 +134,38 @@ public class playerFleetCtrl : MonoBehaviour
         }
     }
 
-    void SetMoveTarget()
+    // 이동할 행성 선택
+    private void SetMoveTarget(GameObject planet)
     {
-        // 선택된 상태인데 현재 이동중이 아니라면
-        if( isMoving == false )
-        {
-            // 우클릭한 행성을 목적지로 설정
-            if( Input.GetMouseButtonDown(1))
+        if( !isSelected ) return;
+
+        // 현재 위치한 행성과 인접한 행성인지 확인
+        for( int j = 0 ; j < currentPlanet.GetComponent<planetCtrl>().nearPlanet.Length ; j++ )
+        {   
+            // 인접한 행성이라면 이동 가능
+            if( planet == currentPlanet.GetComponent<planetCtrl>().nearPlanet[j] )
             {
-                // 우클릭 시 ray를 쏴서, ray에 맞은 모든 오브젝트를 가져옴
-                Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-                RaycastHit2D[] hit = Physics2D.RaycastAll(ray.origin, ray.direction);
+                // 현재 위치한 곳을 출발지로 설정하고 Ray에 맞은 행성을 목적지로 설정
+                startPlanet = currentPlanet;
+                goalPlanet = planet;
 
-                for( int i = 0 ; i < hit.Length ; i++ )
-                {
-                    // 우클릭 ray에 맞은 오브젝트 중 행성이 있다면
-                    if( hit[i].collider.tag == "planet" )
-                    {
-                        // 현재 위치한 행성과 인접한 행성인지 확인
-                        for( int j = 0 ; j < currentPlanet.GetComponent<planetCtrl>().nearPlanet.Length ; j++ )
-                        {   
-                            // 인접한 행성이라면 이동 가능
-                            if( hit[i].collider.gameObject == currentPlanet.GetComponent<planetCtrl>().nearPlanet[j] )
-                            {
-                                // 현재 위치한 곳을 출발지로 설정하고 Ray에 맞은 행성을 목적지로 설정
-                                startPlanet = currentPlanet;
-                                goalPlanet = hit[i].collider.gameObject;
+                // 목적지를 바라봄
+                Transform moveTarget = goalPlanet.GetComponent<Transform>();
+                Vector2 moveDirection = (moveTarget.position - transform.position).normalized;
+                float moveAngle = Mathf.Atan2(moveDirection.x, -moveDirection.y) * Mathf.Rad2Deg;
+                transform.rotation = Quaternion.Euler(0,0,moveAngle + 180);
 
-                                // 목적지를 바라봄
-                                Transform moveTarget = goalPlanet.GetComponent<Transform>();
-                                Vector2 moveDirection = (moveTarget.position - transform.position).normalized;
-                                float moveAngle = Mathf.Atan2(moveDirection.x, -moveDirection.y) * Mathf.Rad2Deg;
-                                transform.rotation = Quaternion.Euler(0,0,moveAngle + 180);
+                // 이동 시작   
+                isMoving = true;
+                goalPlanet.GetComponent<planetCtrl>().isPlayerGoal = true;
 
-                                // 이동 시작   
-                                isMoving = true;
-                                goalPlanet.GetComponent<planetCtrl>().isPlayerGoal = true;
-
-                                // 이동 시작 소리 재생
-                                sound.clip = command;
-                                sound.Play();
-                            }
-                        }
-                    }  
-                }
+                // 이동 시작 소리 재생
+                soundManager.PlaySound("command");
             }
         }
     }
 
-    void SaveSlot()
-    {
-        if( Input.GetKeyDown(KeyCode.Alpha1)) playerManager.fleetSlot[0] = gameObject;
-        if( Input.GetKeyDown(KeyCode.Alpha2)) playerManager.fleetSlot[1] = gameObject;
-        if( Input.GetKeyDown(KeyCode.Alpha3)) playerManager.fleetSlot[2] = gameObject;
-        if( Input.GetKeyDown(KeyCode.Alpha4)) playerManager.fleetSlot[3] = gameObject;
-        if( Input.GetKeyDown(KeyCode.Alpha5)) playerManager.fleetSlot[4] = gameObject;
-    }
-
-    void RotateFleet(GameObject Target)
+    private void RotateFleet(GameObject Target)
     {
         // 새로운 목표로 방향 전환
         Transform moveTarget = Target.GetComponent<Transform>();

@@ -11,7 +11,6 @@ public class fleetIconCtrl : MonoBehaviour, IPointerEnterHandler, IPointerExitHa
     public GameObject myfleetImage, myFleet;
     playerFleetCtrl myFleetData;
     [TextArea] public string myFleetExplain = " ";
-    // Start is called before the first frame update
     void Start()
     {
         // 함선 자원 정보를 표시할 컴포넌트와 오브젝트를 가져온다.
@@ -30,12 +29,7 @@ public class fleetIconCtrl : MonoBehaviour, IPointerEnterHandler, IPointerExitHa
         myFleetData = myFleet.GetComponent<playerFleetCtrl>();
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
-
+    // 마우스를 올리면 화면 왼쪽에 함선 정보 표시
     public void OnPointerEnter(PointerEventData eventData)
     {
         // 함선 능력치 표시

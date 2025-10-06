@@ -15,7 +15,21 @@ public class gameCtrl : MonoBehaviour
     [SerializeField] private GameObject endScreen, pauseScreen, victorySign, defeatSign, menuButton, endBlinder, pauseMenu, pauseResume;
     private RectTransform victoryClip, defeatClip;
     private musicCtrl musicManager;
-    void Start()
+    public static gameCtrl Instance;
+
+    private void Awake()
+    {
+        if( Instance != null && Instance != this )
+        {
+            Destroy(gameObject);
+        }
+        else
+        {
+            Instance = this;
+        }
+    }
+
+    private void Start()
     {
         enemyManager = GameObject.Find("gameManager(computer)").GetComponent<enemyGameCtrl>();
         playerManager = GameObject.Find("gameManager(player)").GetComponent<playerGameCtrl>();

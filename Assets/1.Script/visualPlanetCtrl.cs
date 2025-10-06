@@ -1,7 +1,6 @@
 using UnityEngine;
 
-public class visualPlanetCtrl
- : MonoBehaviour
+public class visualPlanetCtrl : MonoBehaviour
 {
     public GameObject[] nearPlanet = new GameObject[5];
     private LineRenderer liner;
@@ -10,12 +9,6 @@ public class visualPlanetCtrl
     {
         liner = transform.GetComponent<LineRenderer>();
         DrawLine();
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-
     }
 
     void DrawLine()

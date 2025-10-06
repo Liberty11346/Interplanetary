@@ -25,7 +25,6 @@ public class enemyFleetCtrl : MonoBehaviour
         currentPlanet = enemyManager.enemyBasePlanet;
     }
 
-    // Update is called once per frame
     void Update()
     {
         // 게임매니저에서 자신이 선택된 상태인지 확인
@@ -77,8 +76,7 @@ public class enemyFleetCtrl : MonoBehaviour
                 if( other.gameObject == goalPlanet )
                 {
                     // 행성에 완전히 도착했을 때
-                    if( transform.position.x == other.transform.position.x 
-                    && transform.position.y == other.transform.position.y ) 
+                    if( transform.position.x == other.transform.position.x && transform.position.y == other.transform.position.y ) 
                     {
                         // 지금 만난 행성을 현재 위치로 설정 후 이동 종료
                         currentPlanet = other.gameObject;

@@ -6,7 +6,7 @@ public class soundCtrl : MonoBehaviour
     // 싱글톤 인스턴스
     public static soundCtrl Instance { get; private set; }
 
-    [SerializeField] private AudioClip command, select, fleet, fleetError;
+    [SerializeField] private AudioClip command, select, fleet, fleetError, fight;
     public AudioSource soundPlayer;
     void Awake()
     {
@@ -21,20 +21,11 @@ public class soundCtrl : MonoBehaviour
         // -----------------------
         soundPlayer = gameObject.GetComponent<AudioSource>();
     }
-
-    void Start()
-    {
-        
-    }
-
-    void Update()
-    {
-        
-    }
-
+    
     public void PlaySound(string input)
     {
         soundPlayer.pitch = 1.0f;
+        
         switch( input )
         {
             case "command": soundPlayer.clip = command; break;
@@ -43,6 +34,8 @@ public class soundCtrl : MonoBehaviour
             case "fleetError": soundPlayer.pitch = 2.0f; soundPlayer.clip = fleetError; break;
             case "fleetDisturb": soundPlayer.clip = command; break;
         }
-        soundPlayer.Play();
+
+        // 소리 재생
+        soundPlayer.PlayOneShot(soundPlayer.clip);
     }
 }

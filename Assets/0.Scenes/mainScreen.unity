@@ -1462,6 +1462,7 @@ MonoBehaviour:
   select: {fileID: 8300000, guid: 1aff79ee8e0b41745ae67ffd4097b6a3, type: 3}
   fleet: {fileID: 8300000, guid: e6272ac362e4e5547a1ad8d0b2905692, type: 3}
   fleetError: {fileID: 8300000, guid: 3bc09d4a10be19e40a792a3d53bc2d77, type: 3}
+  fight: {fileID: 8300000, guid: 31bbae0b12cbc7f4fb72e14680954ae4, type: 3}
   soundPlayer: {fileID: 0}
 --- !u!4 &1536232600
 Transform:

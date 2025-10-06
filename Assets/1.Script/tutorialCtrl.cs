@@ -55,7 +55,7 @@ public class tutorialCtrl : MonoBehaviour
         // 함대 선택 시 함대 조종 방법 설명
         else if( stepCondition[1] == false )
         {
-            if(playerManager.selectedFleet != null )
+            if( playerManager.selectedFleet != null )
             {
                 stepCondition[1] = true;
                 StartCoroutine(Step10());
@@ -100,8 +100,6 @@ public class tutorialCtrl : MonoBehaviour
                 StartCoroutine(Step16());
             }
         }
-
-
     }
 
     IEnumerator Step1()

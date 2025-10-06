@@ -46,11 +46,6 @@ public class enemyGameCtrl : MonoBehaviour
         StartCoroutine(FindMyFleet()); // 함대 명령 알고리즘 가동
     }
 
-    void Update()
-    {
-
-    }
-
     // 1초마다 보유한 행성으로부터 자원 획득
     IEnumerator GetResource()
     {
