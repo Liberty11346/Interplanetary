@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e477f49f3832c54383aaf8581633b12, type: 3}
+  m_Name: Map1Data
+  m_EditorClassIdentifier: 
+  allPlanets:
+  - {fileID: 11400000, guid: 6370969db46d36d458eaa3e1686eb392, type: 2}
+  - {fileID: 11400000, guid: 4c3829bb7f6239f4f918f737160b9fa3, type: 2}
+  - {fileID: 11400000, guid: 3c5466787a79c24439f362d337d3c20a, type: 2}
+  - {fileID: 11400000, guid: 2cc14a57faed1e74a8a0c02ac4795e66, type: 2}
+  - {fileID: 11400000, guid: 1cb0dae596e14094e8a913db7edb6c0e, type: 2}
+  - {fileID: 11400000, guid: f5d1b9d640cd25a4086c047187bafc24, type: 2}
+  - {fileID: 11400000, guid: dcf25cc8a2f5ee74c8d5edfdfbc81260, type: 2}
+  planetPositions:
+  - {x: 1, y: 3}
+  - {x: 6, y: 2.5}
+  - {x: -6, y: -2.5}
+  - {x: -1, y: -3}
+  - {x: 7, y: 0}
+  - {x: -7, y: 0}
+  - {x: 0, y: 0}
+  planetPaths:
+  - fromID: 0
+    toID: 1
+  - fromID: 0
+    toID: 2
+  - fromID: 0
+    toID: 3
+  - fromID: 0
+    toID: 4
+  - fromID: 1
+    toID: 2
+  - fromID: 1
+    toID: 4
+  - fromID: 2
+    toID: 3
+  - fromID: 3
+    toID: 4
+  - fromID: 6
+    toID: 7
+  - fromID: 7
+    toID: 3
