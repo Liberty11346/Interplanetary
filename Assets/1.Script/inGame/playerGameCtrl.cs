@@ -26,7 +26,7 @@ public class playerGameCtrl : MonoBehaviour
         gameManager = GameObject.Find("gameManager").GetComponent<gameCtrl>();
 
         // 사운드매니저 정보에 접근
-        soundManager = GameObject.Find("soundManager").GetComponent<soundCtrl>();
+        soundManager = soundCtrl.Instance;
 
         // 플레이어가 점령 가능한 행성의 최대치는 맵에 있는 행성 수와 같다
         playerPlanet = new GameObject[GameObject.FindGameObjectsWithTag("planet").Length];
@@ -92,7 +92,7 @@ public class playerGameCtrl : MonoBehaviour
                 if (hit[i].collider.tag == "playerFleet")
                 {
                     selectedFleet = hit[i].collider.gameObject;
-                    soundManager.PlaySound("select"); // 함대 선택 사운드
+                    soundManager.PlaySound(soundCtrl.SoundType.Select); // 함대 선택 사운드
                 }
                 if (hit[i].collider.tag == "enemyFleet") selectedFleet = hit[i].collider.gameObject;
             }
@@ -114,35 +114,35 @@ public class playerGameCtrl : MonoBehaviour
         {
             selectedFleet = fleetSlot[0];
             // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
+            if (selectedFleet != null) soundManager.PlaySound(soundCtrl.SoundType.Select);
         }
 
         if (Input.GetKeyDown(KeyCode.Alpha2))
         {
             selectedFleet = fleetSlot[1];
             // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
+            if (selectedFleet != null) soundManager.PlaySound(soundCtrl.SoundType.Select);
         }
 
         if (Input.GetKeyDown(KeyCode.Alpha3))
         {
             selectedFleet = fleetSlot[2];
             // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
+            if (selectedFleet != null) soundManager.PlaySound(soundCtrl.SoundType.Select);
         }
 
         if (Input.GetKeyDown(KeyCode.Alpha4))
         {
             selectedFleet = fleetSlot[3];
             // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
+            if (selectedFleet != null) soundManager.PlaySound(soundCtrl.SoundType.Select);
         }
 
         if (Input.GetKeyDown(KeyCode.Alpha5))
         {
             selectedFleet = fleetSlot[4];
             // 부대 지정된 함대가 선택되면 함대 선택 사운드 재생
-            if (selectedFleet != null) soundManager.PlaySound("select");
+            if (selectedFleet != null) soundManager.PlaySound(soundCtrl.SoundType.Select);
         }
 
         DisplayCurrentFleetStatus();
@@ -217,7 +217,7 @@ public class playerGameCtrl : MonoBehaviour
                 // 함대 생산 시작
                 productingFleet = fleet;
                 int productTime = fleetData.timeNeed;
-                soundManager.PlaySound("command"); // 생산 사운드
+                soundManager.PlaySound(soundCtrl.SoundType.Command); // 생산 사운드
                 for (int i = 0; i < productTime; i++)
                 {
                     InGameUIManager.Instance?.UpdateProductionProgress(fleetData.fleetName, productTime - i);
@@ -237,7 +237,7 @@ public class playerGameCtrl : MonoBehaviour
                 {
                     InGameUIManager.Instance?.ShowProductionMessage(message, Color.red);
                 }
-                soundManager.PlaySound("fleetError"); // 에러 사운드
+                soundManager.PlaySound(soundCtrl.SoundType.FleetError); // 에러 사운드
             }
         }
         else
@@ -256,7 +256,7 @@ public class playerGameCtrl : MonoBehaviour
     {
         yield return new WaitForSeconds(1.0f);
         // 생산 완료 했는데 모성에 함대가 없어야 함대가 생성됨
-        soundManager.PlaySound("command"); // 생산 사운드
+        soundManager.PlaySound(soundCtrl.SoundType.Command); // 생산 사운드
         if (playerBase.currentFleet == null)
         {
             Instantiate(fleet, playerBase.transform.position, Quaternion.Euler(0, 0, 0));

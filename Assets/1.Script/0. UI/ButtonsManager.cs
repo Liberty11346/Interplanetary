@@ -37,12 +37,6 @@ namespace UI
 
         public void OnButtonClick(ButtonType buttonType)
         {
-            // 모든 버튼 클릭 시 공통적으로 사운드를 재생합니다.
-            if (soundManager != null)
-            {
-                soundManager.PlaySound("select");
-            }
-
             switch (buttonType)
             {
                 case ButtonType.ProductScout:

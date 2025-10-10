@@ -28,46 +28,46 @@ public class mainScreenCtrl : MonoBehaviour
         int randomRate = Random.Range(0, 12);
         titleMask.GetComponent<Image>().sprite = maskList[randomRate];
 
-        soundManager = GameObject.Find("soundManager").GetComponent<soundCtrl>();
+        soundManager = soundCtrl.Instance;
 
         if (startButton != null)
             startButton.onClick.AddListener(() =>
             {
-                soundManager.PlaySound("command");
+                soundManager.PlaySound(soundCtrl.SoundType.Command);
                 SceneManager.LoadScene("selectGame");
             });
 
         if (multiPlayButton != null)
             multiPlayButton.onClick.AddListener(() =>
             {
-                soundManager.PlaySound("command");
+                soundManager.PlaySound(soundCtrl.SoundType.Command);
                 ToggleMultiplayerButtons(true);
             });
 
         if (endButton != null)
             endButton.onClick.AddListener(() =>
             {
-                soundManager.PlaySound("command");
+                soundManager.PlaySound(soundCtrl.SoundType.Command);
                 StartCoroutine(QuitGame());
             });
 
         if (hostButton != null)
             hostButton.onClick.AddListener(() =>
             {
-                soundManager.PlaySound("command");
+                soundManager.PlaySound(soundCtrl.SoundType.Command);
                 ToRobby(true);
             });
 
         if (joinButton != null)
             joinButton.onClick.AddListener(() =>
             {
-                soundManager.PlaySound("command");
+                soundManager.PlaySound(soundCtrl.SoundType.Command);
                 ToRobby(false);
             });
         if (backButton != null)
             backButton.onClick.AddListener(() =>
             {
-                soundManager.PlaySound("command");
+                soundManager.PlaySound(soundCtrl.SoundType.Command);
                 ToggleMultiplayerButtons(false);
             });
     }

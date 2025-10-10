@@ -15,8 +15,6 @@ public class selectGameCtrl : MonoBehaviour
 
     [SerializeField] private GameObject miniMapViewer;
     [SerializeField] private TextMeshProUGUI mapNameText, mapExplainText, mapNumberText;
-    private musicCtrl musicManager;
-    private soundCtrl soundManager;
     void Start()
     {
         // Resources/MapData 폴더에서 모든 MapData 에셋을 불러옵니다.
@@ -37,19 +35,15 @@ public class selectGameCtrl : MonoBehaviour
         mapExplainText = GameObject.Find("mapExplainText").GetComponent<TextMeshProUGUI>();
         mapNumberText = GameObject.Find("mapNumberText").GetComponent<TextMeshProUGUI>();
 
-        // 뮤직 매니저와 사운드 매니저를 탐색하여 접근
-        musicManager = GameObject.Find("musicManager").GetComponent<musicCtrl>();
-        soundManager = GameObject.Find("soundManager").GetComponent<soundCtrl>();
-
         // 뮤직 매니저가 게임 음악을 재생중일 경우
-        if (musicManager.isPlayingGame == true)
+        if (musicCtrl.Instance.isPlayingGame == true)
         {
             // 현재 재생중인 음악을 멈추고
-            musicManager.musicPlayer.Stop();
+            musicCtrl.Instance.musicPlayer.Stop();
 
             // 메인 화면 음악을 재생
-            musicManager.PlayMainMusic();
-            musicManager.isInGame = false;
+            musicCtrl.Instance.PlayMainMusic();
+            musicCtrl.Instance.isInGame = false;
         }
 
         // 기본적으로 첫번째 맵이 선택됨
@@ -66,8 +60,8 @@ public class selectGameCtrl : MonoBehaviour
 
         if (nextButton != null) nextButton.onClick.AddListener(() => ChangeMap(1));
         if (preButton != null) preButton.onClick.AddListener(() => ChangeMap(-1));
-        if (menuButton != null) menuButton.onClick.AddListener(() => { soundManager.PlaySound("command"); SceneManager.LoadScene("mainScreen"); });
-        if (startButton != null) startButton.onClick.AddListener(() => { soundManager.PlaySound("command"); SceneManager.LoadScene(mapList[currentMapNumber].realMapName); });
+        if (menuButton != null) menuButton.onClick.AddListener(() => { soundCtrl.Instance.PlaySound(soundCtrl.SoundType.Command); SceneManager.LoadScene("mainScreen"); });
+        if (startButton != null) startButton.onClick.AddListener(() => { soundCtrl.Instance.PlaySound(soundCtrl.SoundType.Command); SceneManager.LoadScene(mapList[currentMapNumber].realMapName); });
     }
 
     private void ChangeMap(int direction)
@@ -85,7 +79,7 @@ public class selectGameCtrl : MonoBehaviour
 
         // 새로운 맵의 UI를 업데이트합니다.
         UpdateMapUI();
-        soundManager.PlaySound("command"); // 버튼 눌림 사운드
+        soundCtrl.Instance.PlaySound(soundCtrl.SoundType.Command); // 버튼 눌림 사운드
     }
 
     private void UpdateMapUI()

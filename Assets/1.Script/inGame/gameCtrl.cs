@@ -14,7 +14,6 @@ public class gameCtrl : MonoBehaviour
     private int winner;
     [SerializeField] private GameObject endScreen, pauseScreen, victorySign, defeatSign, menuButton, endBlinder, pauseMenu, pauseResume;
     private RectTransform victoryClip, defeatClip;
-    private musicCtrl musicManager;
     void Start()
     {
         enemyManager = GameObject.Find("gameManager(computer)").GetComponent<enemyGameCtrl>();
@@ -33,18 +32,15 @@ public class gameCtrl : MonoBehaviour
         isPaused = false;
         winner = 0;
 
-        // 뮤직 매니저를 탐색
-        musicManager = GameObject.Find("musicManager").GetComponent<musicCtrl>();
-
         // 뮤직 매니저가 메인 화면 음악을 재생중일 경우
-        if (musicManager.isPlayingGame == false)
+        if (musicCtrl.Instance.isPlayingGame == false)
         {
             // 현재 재생중인 음악을 멈추고
-            musicManager.musicPlayer.Stop();
+            musicCtrl.Instance.musicPlayer.Stop();
 
             // 게임 음악을 재생
-            musicManager.PlayGameMusic();
-            musicManager.isInGame = true;
+            musicCtrl.Instance.PlayGameMusic();
+            musicCtrl.Instance.isInGame = true;
         }
 
         // UI 버튼 이벤트 연결
