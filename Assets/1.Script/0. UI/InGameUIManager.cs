@@ -1,6 +1,7 @@
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 
@@ -33,6 +34,7 @@ namespace UI
 
         [SerializeField] private GameObject endScreen, pauseScreen, victorySign, defeatSign, menuButton, endBlinder, pauseMenu, pauseResume;
         private RectTransform victoryClip, defeatClip;
+
         void Awake()
         {
             // --- 싱글톤 패턴 구현 ---
@@ -62,6 +64,29 @@ namespace UI
 
         void Start()
         {
+            // 게임 시작 시 UI 초기화
+            ResetEndScreen();
+            if (pauseScreen != null) pauseScreen.SetActive(false);
+            // lazy thing.. 
+            StartCoroutine(newGameReset());
+        }
+
+        private void OnEnable()
+        {
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        // 스크립트가 비활성화될 때마다 호출됩니다.
+        private void OnDisable()
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            // 게임 시작 시 UI 초기화
+            ResetEndScreen();
+            if (pauseScreen != null) pauseScreen.SetActive(false);
             // lazy thing.. 
             StartCoroutine(newGameReset());
         }
@@ -190,6 +215,45 @@ namespace UI
             if (GameObject.Find("infoFleetUI") != null) GameObject.Find("infoFleetUI").SetActive(false);
         }
 
+        public void ShowPauseScreen(bool show)
+        {
+            if (pauseScreen != null)
+            {
+                pauseScreen.SetActive(show);
+            }
+        }
+
+        public void ToTitle()
+        {
+            SceneManager.LoadScene("MainScreen");
+        }
+
+        public void TriggerEndGame(int winnerId)
+        {
+            if (endBlinder != null) endBlinder.SetActive(true);
+
+
+
+            switch (winnerId)
+            {
+                case 1: StartCoroutine(DisplayVictory()); break;
+                case 2: StartCoroutine(DisplayDefeat()); break;
+            }
+        }
+
+        public void ResetEndScreen()
+        {
+            if (endBlinder != null) endBlinder.SetActive(false);
+            if (victorySign != null) victorySign.SetActive(false);
+            if (defeatSign != null) defeatSign.SetActive(false);
+            if (menuButton != null) menuButton.SetActive(false);
+
+            if (victoryClip != null)
+                victoryClip.sizeDelta = new Vector2(0, 500); // 초기 너비값(50)으로 설정
+            if (defeatClip != null)
+                defeatClip.sizeDelta = new Vector2(0, 500); // 초기 너비값(50)으로 설정
+        }
+
         // ====== gameCtrl에서 복사: 승리/패배 연출 ======
         public IEnumerator DisplayVictory()
         {
@@ -223,7 +287,7 @@ namespace UI
             if (menuButton != null) menuButton.SetActive(true);
         }
 
-        // ====== fleetIconCtrl에서 참고용: UI 표시 로직 스냅샷 (주석으로 보존) ======
+        // ====== fleetIconCtrl에서 참고용: UI 표시 로직 (주석으로 보존) ======
         /*
         void OnPointerEnter(PointerEventData eventData)
         {
