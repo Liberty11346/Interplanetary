@@ -1,9 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-#if UNITY_EDITOR
-using UnityEditor; // 에디터 관련 API 사용을 위해 추가
-#endif
 
 public class MapManager : MonoBehaviour
 {
@@ -31,29 +28,101 @@ public class MapManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 현재 씬의 행성 데이터를 MapData에 저장합니다.
+    /// 실제 저장 로직은 MapManagerEditor에서 처리합니다.
+    /// </summary>
+    public void SavePlanetsToMapData()
+    {
+#if UNITY_EDITOR
+        // 실제 구현은 MapManagerEditor에서 처리합니다.
+#else
+        Debug.LogWarning("행성 데이터 저장 기능은 Unity 에디터에서만 사용할 수 있습니다.");
+#endif
+    }
+
+    /// <summary>
+    /// MapData에서 행성 데이터를 불러와 맵을 재구성합니다.
+    /// </summary>
+    public void LoadMapFromData()
+    {
+        if (mapData == null)
+        {
+            Debug.LogError("MapData가 할당되지 않았습니다.");
+            return;
+        }
+
+        // 1. 기존 맵의 모든 행성 데이터를 완전히 제거
+        ClearAllPlanets();
+
+        // 2. 저장된 행성 데이터를 로드하여 새로운 행성 생성
+        for (int i = 0; i < mapData.planets.Count; i++)
+        {
+            // 행성 데이터와 위치 정보 가져오기
+            PlanetData planetData = mapData.planets[i];
+            Vector2 position = mapData.planetPositions[i];
+
+            // 행성 프리팹 인스턴스 생성
+            planetCtrl planet = PlanetFactory.CreatePlanetFromData(planetData, position);
+            planet.transform.parent = transform;
+        }
+
+        // 3. 행성 간 연결 정보 설정
+        scenePlanets = new List<planetCtrl>(GetComponentsInChildren<planetCtrl>());
+        foreach (var path in mapData.planetPaths)
+        {
+            if (path.fromID < scenePlanets.Count && path.toID < scenePlanets.Count)
+            {
+                // 연결할 행성 찾기
+                planetCtrl fromPlanet = scenePlanets[path.fromID];
+                planetCtrl toPlanet = scenePlanets[path.toID];
+
+                // 빈 슬롯 찾아서 연결 설정
+                for (int i = 0; i < fromPlanet.nearPlanet.Length; i++)
+                {
+                    if (fromPlanet.nearPlanet[i] == null)
+                    {
+                        fromPlanet.nearPlanet[i] = toPlanet.gameObject;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 4. 모든 행성 초기화하여 정상 작동 확인
+        InitPlanets();
+
+        Debug.Log($"MapData에서 {mapData.planets.Count}개의 행성을 불러와 맵을 재구성했습니다.");
+    }
+
+    /// <summary>
+    /// 현재 맵의 모든 행성을 제거합니다.
+    /// </summary>
+    private void ClearAllPlanets()
+    {
+        // 기존 행성 목록 복사 (삭제 중 컬렉션 변경 방지)
+        List<planetCtrl> planetsToRemove = new List<planetCtrl>(scenePlanets);
+
+        // 모든 행성 게임오브젝트 제거
+        foreach (var planet in planetsToRemove)
+        {
+            if (planet != null && planet.gameObject != null)
+            {
+                DestroyImmediate(planet.gameObject);
+            }
+        }
+
+        // 행성 목록 초기화
+        scenePlanets.Clear();
+    }
+
+    /// <summary>
     /// 현재 씬의 이름을 MapData 에셋에 저장합니다.
+    /// 실제 저장 로직은 MapManagerEditor에서 처리합니다.
     /// </summary>
     public void SaveSceneName()
     {
 #if UNITY_EDITOR
-        if (mapData == null)
-        {
-            Debug.LogError("MapData 에셋이 MapManager에 할당되지 않았습니다.");
-            return;
-        }
-
-        // 현재 GameObject가 속한 씬의 경로를 가져와 파일 이름만 추출합니다.
-        string scenePath = gameObject.scene.path;
-        string sceneName = System.IO.Path.GetFileNameWithoutExtension(scenePath);
-
-        // MapData에 씬 이름을 저장합니다.
-        mapData.realMapName = sceneName;
-
-        // 변경사항을 디스크에 저장합니다.
-        EditorUtility.SetDirty(mapData);
-        AssetDatabase.SaveAssets();
-
-        Debug.Log($"'{mapData.name}' 에셋에 현재 씬 이름 '{sceneName}'이(가) 저장되었습니다.");
+        // 실제 구현은 MapManagerEditor에서 처리합니다.
 #else
         Debug.LogWarning("씬 이름 저장 기능은 Unity 에디터에서만 사용할 수 있습니다.");
 #endif
@@ -61,67 +130,26 @@ public class MapManager : MonoBehaviour
 
     /// <summary>
     /// 할당된 카메라를 사용하여 캡처하고 MapData 에셋에 미리보기 이미지로 저장합니다.
+    /// 실제 캡처 로직은 MapManagerEditor에서 처리합니다.
     /// </summary>
     /// <param name="width">캡처할 이미지의 너비</param>
     /// <param name="height">캡처할 이미지의 높이</param>
     public void CaptureMapSnapshot(int width = 512, int height = 512)
     {
 #if UNITY_EDITOR
-        if (mapData == null)
-        {
-            Debug.LogError("MapData 에셋이 PlanetsManager에 할당되지 않았습니다.");
-            return;
-        }
-
-        if (snapshotCamera == null)
-        {
-            Debug.LogError("Snapshot Camera가 할당되지 않았습니다. 인스펙터에서 카메라를 할당해주세요.");
-            return;
-        }
-
-        // 카메라의 원래 타겟 텍스처를 저장합니다.
-        var originalTargetTexture = snapshotCamera.targetTexture;
-
-        // 캡처를 위한 렌더 텍스처를 생성하고 카메라에 설정합니다.
-        RenderTexture rt = new RenderTexture(width, height, 24);
-        snapshotCamera.targetTexture = rt;
-        snapshotCamera.Render();
-
-        // 렌더 텍스처의 내용을 새로운 Texture2D로 복사합니다.
-        RenderTexture.active = rt;
-        Texture2D snapshot = new Texture2D(width, height, TextureFormat.RGB24, false);
-        snapshot.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-        snapshot.Apply();
-
-        // 카메라 설정을 원래대로 복원하고 사용한 리소스를 정리합니다.
-        snapshotCamera.targetTexture = originalTargetTexture;
-        RenderTexture.active = null;
-        DestroyImmediate(rt);
-
-        // MapData 에셋에 포함된 기존 미리보기 이미지(하위 에셋)를 모두 찾아 삭제합니다.
-        string assetPath = AssetDatabase.GetAssetPath(mapData);
-        Object[] subAssets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
-        foreach (var subAsset in subAssets)
-        {
-            // Texture2D 타입이고, 이름이 "_Preview"로 끝나는 하위 에셋을 모두 삭제합니다.
-            if (subAsset is Texture2D && subAsset.name.EndsWith("_Preview"))
-            {
-                DestroyImmediate(subAsset, true);
-            }
-        }
-
-        // 캡처한 스냅샷을 MapData에 할당하고 에셋에 저장합니다.
-        snapshot.name = $"{mapData.name}_Preview";
-        mapData.mapPreviewImage = snapshot;
-
-        AssetDatabase.AddObjectToAsset(snapshot, mapData); // 텍스처를 MapData 에셋의 하위 에셋으로 저장
-        EditorUtility.SetDirty(mapData);
-        AssetDatabase.SaveAssets();
-        AssetDatabase.Refresh();
-
-        Debug.Log($"'{mapData.name}' 에셋에 '{snapshotCamera.name}' 카메라의 스냅샷이 저장되었습니다.");
+        // 실제 구현은 MapManagerEditor에서 처리합니다.
 #else
         Debug.LogWarning("맵 스냅샷 캡처 기능은 Unity 에디터에서만 사용할 수 있습니다.");
 #endif
+    }
+
+    /// <summary>
+    /// 행성 이름으로 씬에 있는 planetCtrl을 찾습니다.
+    /// </summary>
+    /// <param name="name">찾을 행성의 이름</param>
+    /// <returns>찾은 planetCtrl. 없으면 null을 반환합니다.</returns>
+    public planetCtrl FindPlanetByName(string name)
+    {
+        return scenePlanets.FirstOrDefault(p => p.planetName == name);
     }
 }

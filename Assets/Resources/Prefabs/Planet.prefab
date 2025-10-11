@@ -364,9 +364,10 @@ GameObject:
   - component: {fileID: 5603675757519056994}
   - component: {fileID: 4522965096563745696}
   - component: {fileID: 5155760404835151734}
+  - component: {fileID: 5231367558352914638}
   - component: {fileID: 937597029083451556}
   m_Layer: 0
-  m_Name: Planet Base_NEED_INIT
+  m_Name: Planet
   m_TagString: planet
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -587,6 +588,30 @@ MonoBehaviour:
   isNetural: 1
   isPlayerGoal: 0
   isEnemyGoal: 0
+--- !u!114 &5231367558352914638
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1870118935075769941}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b0ce5ca8a9973fa4cb350af0cdcc29e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rectTransform: {fileID: 0}
+  icon: {fileID: 0}
+  button: {fileID: 0}
+  nodeId: 0
+  progressText: {fileID: 0}
+  planetNameText: {fileID: 0}
+  gas: {fileID: 0}
+  gasText: {fileID: 0}
+  mineral: {fileID: 0}
+  mineralText: {fileID: 0}
+  supply: {fileID: 0}
+  supplyText: {fileID: 0}
 --- !u!58 &937597029083451556
 CircleCollider2D:
   m_ObjectHideFlags: 0
