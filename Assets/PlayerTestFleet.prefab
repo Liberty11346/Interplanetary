@@ -142,13 +142,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6e46a147ac4d8f941a85ffc141b14819, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  player1Color: {r: 0, g: 1, b: 1, a: 1}
-  player2Color: {r: 1, g: 0, b: 1, a: 1}
   moveSpeed: 200
   fleetButton: {fileID: 7690723053924598182}
   fleetImage: {fileID: 4146249121721999015}
   fleetIdText: {fileID: 0}
-  trailEffect: {fileID: 0}
   OnFleetClicked:
     m_PersistentCalls:
       m_Calls: []

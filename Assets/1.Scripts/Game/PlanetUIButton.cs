@@ -2,11 +2,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 /// <summary>
 /// 행성 UI 버튼 클래스
 /// 행성의 자원은 생성 시점에 고정되며, 업데이트되지 않습니다.
 /// </summary>
-public class PlanetUIButton : MonoBehaviour
+public class PlanetUIButton : MonoBehaviour, IPointerClickHandler
 {
     [Header("Visual Settings")]
     public Color neutralColor = Color.white;
@@ -14,7 +15,7 @@ public class PlanetUIButton : MonoBehaviour
     public Color player2Color = Color.magenta;
 
     [Header("UI Components")]
-    public Button planetButton;
+    //public Button planetButton;
     public Image planetImage;
     public TextMeshProUGUI planetNameText;
     public TextMeshProUGUI mineralsText;
@@ -42,10 +43,6 @@ public class PlanetUIButton : MonoBehaviour
 
     public void Initialize(int minerals = -1, int gas = -1, int supply = -1, string planetName = null)
     {
-        if (planetButton != null)
-        {
-            planetButton.onClick.AddListener(OnPlanetButtonClicked);
-        }
 
         if (planetNameText != null)
             planetNameText.text = !string.IsNullOrEmpty(planetName) ? planetName : $"Planet {planetId}";
@@ -63,12 +60,17 @@ public class PlanetUIButton : MonoBehaviour
 
     private void OnPlanetButtonClicked()
     {
-        Debug.Log($"Planet {planetId} clicked!");
-        // 직접 선택 상태로 설정
-        SetSelected(true);
-        // 이벤트 발생
-        OnPlanetClicked?.Invoke(planetId);
-        Debug.Log($"Planet {planetId} selection state: {_isSelected}");
+        // 좌클을 막았습니다. 사실 버튼도 필요 없어졌습니다.
+        //Debug.Log($"Planet {planetId} clicked!");
+        //GameManager.Instance.SelectPlanet(planetId);
+    }
+        public void OnPointerClick(PointerEventData eventData)
+    {
+        if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            Debug.Log($"Planet {planetId} clicked!");
+            GameManager.Instance.SelectPlanet(planetId);
+        }
     }
 
     public void UpdateOwnership(int newOwnerId)
@@ -84,12 +86,6 @@ public class PlanetUIButton : MonoBehaviour
         {
             conquestProgressText.gameObject.SetActive(progress > 0 && progress < 100);
         }
-        UpdateVisuals();
-    }
-
-    public void SetSelected(bool selected)
-    {
-        _isSelected = selected;
         UpdateVisuals();
     }
 

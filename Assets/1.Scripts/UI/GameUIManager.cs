@@ -27,11 +27,8 @@ public class GameUIManager : MonoBehaviour
     public GameObject fleetItemPrefab;
 
     [Header("Planet UI")]
-    public TextMeshProUGUI selectedPlanetText;
 
     private UnityGameClient _gameClient;
-    private string _chatContent = "";
-    private int _selectedPlanetId = 1;
 
     private void Start()
     {
@@ -62,7 +59,12 @@ public class GameUIManager : MonoBehaviour
             sendChatButton.onClick.AddListener(SendChat);
 
         if (produceFleetButton != null)
-            produceFleetButton.onClick.AddListener(() => _gameClient.RequestProduceFleet(_selectedPlanetId));
+            produceFleetButton.onClick.AddListener(() => {
+                if (GameManager.Instance != null && GameManager.Instance.MyHomePlanetId != -1)
+                {
+                    _gameClient.RequestProduceFleet(GameManager.Instance.MyHomePlanetId);
+                }
+            });
 
         if (leaveRoomButton != null)
             leaveRoomButton.onClick.AddListener(() => _gameClient.LeaveRoom());
@@ -73,7 +75,6 @@ public class GameUIManager : MonoBehaviour
 
         // 초기 UI 상태 설정
         UpdateConnectionUI(false);
-        UpdateSelectedPlanet();
     }
 
     private void OnDestroy()
@@ -100,20 +101,13 @@ public class GameUIManager : MonoBehaviour
 
     private void HandleKeyboardInput()
     {
-        // 숫자 키로 행성 선택
-        for (int i = 1; i <= 9; i++)
-        {
-            if (Input.GetKeyDown(KeyCode.Alpha0 + i))
-            {
-                _selectedPlanetId = i;
-                UpdateSelectedPlanet();
-            }
-        }
-
         // 스페이스바로 함대 생산
         if (Input.GetKeyDown(KeyCode.Space) && _gameClient != null && _gameClient.IsConnected)
         {
-            _gameClient.RequestProduceFleet(_selectedPlanetId);
+            if (GameManager.Instance != null && GameManager.Instance.MyHomePlanetId != -1)
+            {
+                _gameClient.RequestProduceFleet(GameManager.Instance.MyHomePlanetId);
+            }
         }
     }
 
@@ -181,10 +175,10 @@ public class GameUIManager : MonoBehaviour
         if (fleetListParent != null && fleetItemPrefab != null)
         {
             GameObject fleetItem = Instantiate(fleetItemPrefab, fleetListParent);
-            FleetUIItem fleetUIItem = fleetItem.GetComponent<FleetUIItem>();
-            if (fleetUIItem != null)
+            FleetUIButton fleetUIButton = fleetItem.GetComponent<FleetUIButton>();
+            if (fleetUIButton != null)
             {
-                fleetUIItem.Setup(fleetData);
+                fleetUIButton.Initialize(fleetData);
             }
         }
 
@@ -226,20 +220,14 @@ public class GameUIManager : MonoBehaviour
             leaveRoomButton.interactable = connected;
     }
 
-    private void UpdateSelectedPlanet()
-    {
-        if (selectedPlanetText != null)
-        {
-            selectedPlanetText.text = $"Selected Planet: {_selectedPlanetId}";
-        }
-    }
+
 
     private void AddChatMessage(string sender, string message, System.DateTime? timestamp = null)
     {
         if (chatContentText == null) return;
 
         var time = timestamp ?? System.DateTime.Now;
-        _chatContent += $"[{time:HH:mm:ss}] {sender}: {message}\n";
+        string _chatContent = $"[{time:HH:mm:ss}] {sender}: {message}\n";
         chatContentText.text = _chatContent;
 
         // 스크롤을 맨 아래로
@@ -264,23 +252,11 @@ public class GameUIManager : MonoBehaviour
     }
 
     // 공개 메서드들
-    public void SetSelectedPlanet(int planetId)
-    {
-        _selectedPlanetId = planetId;
-        UpdateSelectedPlanet();
-    }
+
 
     public void SetSelectedFleet(int fleetId)
     {
         // 선택된 함대 정보 업데이트 (필요시 UI 요소 추가)
         Debug.Log($"Fleet {fleetId} selected in UI");
-    }
-
-    public void ProduceFleetAtSelectedPlanet()
-    {
-        if (_gameClient != null && _gameClient.IsConnected)
-        {
-            _gameClient.RequestProduceFleet(_selectedPlanetId);
-        }
     }
 }

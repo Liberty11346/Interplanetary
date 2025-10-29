@@ -5,18 +5,19 @@ using System.Collections;
 using CommonLib;
 using UnityEngine.Events;
 
+/// <summary>
+/// 데이터를 받아서 초기화하는 함대 클래스
+/// </summary>
 public class FleetUIButton : MonoBehaviour
 {
     [Header("Visual Settings")]
-    public Sprite player1Sprite;
-    public Sprite player2Sprite;
+    public FleetData fleetData;
     public float moveSpeed = 200f; // UI 픽셀 단위
 
     [Header("UI Components")]
     public Button fleetButton;
     public Image fleetImage;
     public TextMeshProUGUI fleetIdText;
-    public GameObject trailEffect;
 
     [Header("Events")]
     public UnityEvent<int> OnFleetClicked;
@@ -46,11 +47,7 @@ public class FleetUIButton : MonoBehaviour
     private void OnFleetButtonClicked()
     {
         Debug.Log($"Fleet {_fleetId} clicked!");
-        // 직접 선택 상태로 설정
-        SetSelected(true);
-        // 이벤트 발생
-        OnFleetClicked?.Invoke(_fleetId);
-        Debug.Log($"Fleet {_fleetId} selection state: {_isSelected}");
+        GameManager.Instance.SelectFleet(_fleetId);
     }
 
     public void Initialize(FleetSpawnData fleetData)
@@ -64,7 +61,8 @@ public class FleetUIButton : MonoBehaviour
 
         if (fleetImage != null)
         {
-            fleetImage.sprite = _ownerId == 1 ? player1Sprite : player2Sprite;
+            //fleetImage.sprite = _ownerId == 1 ? player1Sprite : player2Sprite;
+            // todo 데이터에서 스프라이트 받기?
         }
 
         // 행성 위치로 이동
@@ -73,10 +71,6 @@ public class FleetUIButton : MonoBehaviour
         {
             _rectTransform.position = planet.GetFleetSpawnPosition();
         }
-
-        // 트레일 효과 초기화
-        if (trailEffect != null)
-            trailEffect.SetActive(false);
     }
 
     public void StartMovement(FleetMoveData moveData)
@@ -95,9 +89,6 @@ public class FleetUIButton : MonoBehaviour
     {
         _isMoving = true;
 
-        if (trailEffect != null)
-            trailEffect.SetActive(true);
-
         Vector3 startPosition = _rectTransform.position;
         float distance = Vector3.Distance(startPosition, targetPosition);
         float duration = distance / moveSpeed;
@@ -114,9 +105,6 @@ public class FleetUIButton : MonoBehaviour
         }
 
         _rectTransform.position = targetPosition;
-
-        if (trailEffect != null)
-            trailEffect.SetActive(false);
 
         _isMoving = false;
     }
@@ -139,22 +127,6 @@ public class FleetUIButton : MonoBehaviour
                 return planet;
         }
         return null;
-    }
-
-    public void SetSelected(bool selected)
-    {
-        _isSelected = selected;
-        UpdateVisuals();
-    }
-
-    private void UpdateVisuals()
-    {
-        // 선택 상태에 따른 시각적 변화 적용
-        if (fleetImage != null)
-        {
-            // 선택된 경우 더 밝게 표시
-            fleetImage.color = _isSelected ? Color.white * 1.5f : Color.white;
-        }
     }
 
     // Public getters

@@ -1,6 +1,7 @@
 using UnityEngine;
 using CommonLib;
 using System.Collections.Generic;
+using System;
 
 
 /// <summary>
@@ -10,6 +11,8 @@ using System.Collections.Generic;
 /// </summary>
 public class GameManager : MonoBehaviour
 {
+    public static GameManager Instance { get; private set; }
+
     [Header("Game Settings")]
     public bool autoStartGame = true;
     public float gameTickRate = 1f; // 초당 틱 수
@@ -17,12 +20,20 @@ public class GameManager : MonoBehaviour
     [Header("Managers")]
     public UnityGameClient gameClient;      // 서버 통신 담당
     public GameUIManager uiManager;         // UI 관리 담당
-    public UnifiedVisualizationManager visualizationManager;  // 시각화 담당
+    public VisualizationManager visualizationManager;  // 시각화 담당
 
     [Header("Game State")]
     public bool isGameStarted = false;
     public int myPlayerId = -1;
+    public int MyHomePlanetId { get; private set; } = -1;
     public float gameTime = 0f;
+
+    [Header("Selection State")]
+    public int selectedPlanetId = -1;
+    public int selectedFleetId = -1;
+
+    public event Action<int> OnPlanetSelected;
+    public event Action<int> OnFleetSelected;
 
     private long _currentTick = 0;
     private float _tickTimer = 0f;
@@ -31,6 +42,18 @@ public class GameManager : MonoBehaviour
     private Dictionary<int, PlanetData> _planetDataCache = new Dictionary<int, PlanetData>();
     private Dictionary<int, FleetData> _fleetDataCache = new Dictionary<int, FleetData>();
     private Dictionary<int, ResourceData> _playerResourceCache = new Dictionary<int, ResourceData>();
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+        }
+        else
+        {
+            Instance = this;
+        }
+    }
 
     private void Start()
     {
@@ -61,7 +84,7 @@ public class GameManager : MonoBehaviour
             uiManager = FindFirstObjectByType<GameUIManager>();
 
         if (visualizationManager == null)
-            visualizationManager = FindFirstObjectByType<UnifiedVisualizationManager>();
+            visualizationManager = FindFirstObjectByType<VisualizationManager>();
 
         // 게임 클라이언트 이벤트 구독
         if (gameClient != null)
@@ -175,6 +198,7 @@ public class GameManager : MonoBehaviour
         _planetDataCache.Clear();
         _fleetDataCache.Clear();
         _playerResourceCache.Clear();
+        MyHomePlanetId = -1; // 리셋
 
         // 게임 데이터가 있으면 캐싱
         if (gameData.Planets != null)
@@ -182,6 +206,13 @@ public class GameManager : MonoBehaviour
             foreach (var planet in gameData.Planets)
             {
                 _planetDataCache[planet.PlanetId] = planet;
+
+                // 내 소유의 행성이면 모성으로 설정 (첫 번째 행성을 모성으로 가정)
+                if (MyHomePlanetId == -1 && planet.OwnerId == myPlayerId)
+                {
+                    MyHomePlanetId = planet.PlanetId;
+                    Debug.Log($"My home planet is set to: {MyHomePlanetId}");
+                }
             }
         }
 
@@ -318,7 +349,7 @@ public class GameManager : MonoBehaviour
         // 시각화 요청 - 함대 생성
         if (visualizationManager != null)
         {
-            visualizationManager.CreateFleet(fleetData.FleetId, fleetData.PlanetId, fleetData.FleetType, fleetData.OwnerId);
+            visualizationManager.CreateFleet(fleetData.FleetId, fleetData.FleetType, fleetData.OwnerId);
         }
 
         Debug.Log($"Fleet {fleetData.FleetId} spawned at planet {fleetData.PlanetId} by player {fleetData.OwnerId}");
@@ -433,6 +464,45 @@ public class GameManager : MonoBehaviour
 
     #region 공개 메서드 - 외부에서 호출 가능한 인터페이스
 
+    public void SelectPlanet(int planetId)
+    {
+        // 함대가 먼저 선택되었는지 확인
+        if (selectedFleetId != -1)
+        {
+            // 함대가 선택된 상태 -> 이동 명령 실행
+            Debug.Log($"Fleet {selectedFleetId} is selected. Issuing move command to planet {planetId}.");
+
+            // 이동 명령 요청
+            CommandFleetMovement(selectedFleetId, planetId);
+
+            // 명령 후 선택 상태 초기화
+            selectedFleetId = -1;
+            selectedPlanetId = -1;
+            OnFleetSelected?.Invoke(selectedFleetId);
+            OnPlanetSelected?.Invoke(selectedPlanetId);
+        }
+        else
+        {
+            // 함대가 선택되지 않은 상태 -> 단순 행성 선택
+            selectedPlanetId = planetId;
+            OnPlanetSelected?.Invoke(selectedPlanetId);
+        }
+    }
+
+    public void SelectFleet(int fleetId)
+    { 
+        // 함대 선택은 항상 이동 명령의 시작점.
+        // 이전에 선택된 행성이 있다면 무시하고, 함대만 선택된 상태로 만든다.
+        selectedFleetId = fleetId;
+        selectedPlanetId = -1; // 행성 선택 초기화
+        
+        OnFleetSelected?.Invoke(selectedFleetId);
+        OnPlanetSelected?.Invoke(selectedPlanetId); // 행성 선택 해제 알림
+        Debug.Log($"Fleet {fleetId} selected. Ready for move command.");
+    }
+
+
+
     /// <summary>
     /// 게임 시작 요청
     /// </summary>
@@ -529,13 +599,13 @@ public class GameManager : MonoBehaviour
     /// <summary>
     /// 함대 생성 요청 - UI나 입력에서 호출
     /// </summary>
-    public void CommandFleetSpawn(int planetId, int fleetType)
+    public void CommandFleetSpawn(int fleetType)
     {
         if (gameClient != null && gameClient.IsConnected && isGameStarted)
         {
             // 서버에 함대 생성 요청
-            gameClient.RequestProduceFleet(planetId);
-            Debug.Log($"Requesting fleet spawn of type {fleetType} at planet {planetId}");
+            gameClient.RequestProduceFleet(fleetType);
+            Debug.Log($"Requesting fleet spawn of type {fleetType}");
 
             // 실제 함대 생성 및 검증은 서버에서 처리
             // 서버는 자원 확인, 생산 가능 여부 등을 검증하고

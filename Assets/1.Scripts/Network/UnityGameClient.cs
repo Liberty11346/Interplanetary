@@ -534,9 +534,11 @@ public class UnityGameClient : MonoBehaviour
     /// 함대 생산 요청 - 클라이언트 → 서버 (프로토콜: SUBMIT_COMMAND = 3010)
     /// 게임 명령 시스템 사용 (ProduceFleetCommand 객체 생성)
     /// GameManager에서 호출하는 함수명과 일치시키기 위한 별칭 함수
+    /// targetPlanetId? fleetId?
     /// </summary>
-    public void RequestProduceFleet(int targetPlanetId)
+    public void RequestProduceFleet(int fleetId)
     {
+        Debug.Log("RequestProduceFleet called" + fleetId);
         if (_myPlayerId == -1)
         {
             LogDebug("Player ID not set!");
@@ -547,7 +549,7 @@ public class UnityGameClient : MonoBehaviour
         {
             PlayerId = _myPlayerId,
             TickNumber = _currentTick + 10,
-            TargetId = targetPlanetId
+            TargetId = fleetId
         };
 
         SubmitGameCommand(command);

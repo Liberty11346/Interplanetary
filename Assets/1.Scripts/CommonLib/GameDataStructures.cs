@@ -3,6 +3,19 @@ using System.Data;
 
 namespace CommonLib
 {
+    // 전송용 struct들 중복되거나, 비효율적인 구조체가 있을 수 있음 
+    
+
+
+
+
+
+
+
+
+    /// <summary>
+    /// 명령 불발시 클라이언트에 피드백 가능하게 만들어보려고 함, 아직 사용 안함
+    /// </summary>
     [Serializable]
     public struct CommandFailureData
     {
@@ -72,6 +85,9 @@ namespace CommonLib
         public int MaxSupply;
     }
 
+    /// <summary>
+    /// 없애고 플릿 데이터랑 합치고 싶음
+    /// </summary>
     [Serializable]
     public struct FleetSpawnData
     {
@@ -81,6 +97,10 @@ namespace CommonLib
         public int PlanetId;
     }
 
+
+/// <summary>
+/// 함대 이동 데이터
+/// </summary>
     [Serializable]
     public struct FleetMoveData
     {

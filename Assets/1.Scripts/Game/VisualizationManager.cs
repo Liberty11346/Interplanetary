@@ -7,47 +7,46 @@ using CommonLib;
 /// 통합 시각화 매니저 - 게임 내 모든 시각적 요소 관리
 /// GameManager로부터 데이터를 받아 시각적 표현만 담당
 /// </summary>
-public class UnifiedVisualizationManager : MonoBehaviour
+public class VisualizationManager : MonoBehaviour
 {
     [Header("Prefabs")]
-    public GameObject planetPrefab;          // 행성 3D 오브젝트 프리팹
-    public GameObject fleetPrefab;           // 함대 3D 오브젝트 프리팹
-    public GameObject planetUIButtonPrefab;  // 행성 UI 버튼 프리팹
-    public GameObject fleetUIItemPrefab;     // 함대 UI 아이템 프리팹
+    public GameObject planetPrefab;  // 행성 프리팹
+    public GameObject fleetPrefab;     // 함대 프리팹
 
     [Header("UI Containers")]
-    public Transform planetContainer;        // 행성 3D 오브젝트 컨테이너
-    public Transform fleetContainer;         // 함대 3D 오브젝트 컨테이너
-    public Transform planetUIContainer;      // 행성 UI 버튼 컨테이너
-    public Transform fleetUIContainer;       // 함대 UI 아이템 컨테이너
-
-    [Header("Map Settings")]
-    public Vector3[] planetPositions = {     // 테스트용 행성 위치
-        new Vector3(-5, 0, 0),
-        new Vector3(5, 0, 0),
-        new Vector3(0, 0, 5),
-        new Vector3(0, 0, -5)
-    };
+    public Transform planetContainer;        // 행성 오브젝트 컨테이너
+    public Transform fleetContainer;         // 함대 오브젝트 컨테이너
 
     [Header("Selection")]
     public GameObject fleetSelectionRing;    // 함대 선택 표시 링
     public GameObject planetSelectionRing;   // 행성 선택 표시 링
 
-    [Header("Camera")]
-    public Camera gameCamera;                // 게임 카메라 참조
+    // 데이터 캐싱
+    private Dictionary<int, GameObject> _planets = new Dictionary<int, GameObject>();
+    private Dictionary<int, PlanetUIButton> _planetButtons = new Dictionary<int, PlanetUIButton>();
+    private Dictionary<int, FleetUIButton> _fleets = new Dictionary<int, FleetUIButton>();
 
-    // 시각화 오브젝트 캐싱
-    private Dictionary<int, GameObject> _planets = new Dictionary<int, GameObject>();        // 행성 ID -> 행성 오브젝트
-    private Dictionary<int, FleetUIItem> _fleets = new Dictionary<int, FleetUIItem>();       // 함대 ID -> 함대 UI 아이템
-    private Dictionary<int, PlanetUIButton> _planetButtons = new Dictionary<int, PlanetUIButton>(); // 행성 ID -> 행성 UI 버튼
-
-    /// <summary>
-    /// 컴포넌트 초기화 및 테스트 행성 생성
-    /// </summary>
     private void Start()
     {
         // 시각화 초기화
         InitializeVisualization();
+
+        // GameManager 이벤트 구독
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnPlanetSelected += UpdatePlanetSelection;
+            GameManager.Instance.OnFleetSelected += UpdateFleetSelection;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        // GameManager 이벤트 구독 해제
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnPlanetSelected -= UpdatePlanetSelection;
+            GameManager.Instance.OnFleetSelected -= UpdateFleetSelection;
+        }
     }
 
     /// <summary>
@@ -62,34 +61,24 @@ public class UnifiedVisualizationManager : MonoBehaviour
             fleetSelectionRing.SetActive(false);
         if (planetSelectionRing != null)
             planetSelectionRing.SetActive(false);
-
-        // 테스트용 행성 생성 (실제 게임에서는 GameManager에서 데이터 수신 후 생성)
-        for (int i = 0; i < planetPositions.Length; i++)
-        {
-            CreatePlanet(i + 1, planetPositions[i]);
-        }
     }
 
     /// <summary>
-    /// 행성 생성 - 3D 오브젝트 및 UI 버튼 생성
+    /// 행성 생성
     /// </summary>
     /// <param name="planetId">행성 ID</param>
     /// <param name="position">행성 위치</param>
     public void CreatePlanet(int planetId, Vector3 position)
     {
-        // 3D 행성 오브젝트 생성
         if (planetPrefab != null && planetContainer != null)
         {
+            // 지정된 위치에 행성 프리팹을 생성하고, 컨테이너의 자식으로 설정합니다.
             GameObject planetObj = Instantiate(planetPrefab, position, Quaternion.identity, planetContainer);
-            planetObj.name = $"Planet_{planetId}";
+            
+            // 이동 및 선택 로직을 위해 생성된 행성 게임 오브젝트를 딕셔너리에 캐싱합니다.
             _planets[planetId] = planetObj;
-        }
 
-        // UI 버튼 생성
-        if (planetUIButtonPrefab != null && planetUIContainer != null)
-        {
-            GameObject buttonObj = Instantiate(planetUIButtonPrefab, planetUIContainer);
-            var planetButton = buttonObj.GetComponent<PlanetUIButton>();
+            var planetButton = planetObj.GetComponent<PlanetUIButton>();
             if (planetButton != null)
             {
                 planetButton.planetId = planetId;
@@ -102,39 +91,30 @@ public class UnifiedVisualizationManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 함대 생성 - UI 아이템 생성 및 초기 위치 설정
+    /// 함대 생성
     /// </summary>
     /// <param name="fleetId">함대 ID</param>
-    /// <param name="planetId">소속 행성 ID</param>
     /// <param name="fleetType">함대 유형</param>
     /// <param name="ownerId">소유자 ID</param>
-    public void CreateFleet(int fleetId, int planetId, int fleetType, int ownerId)
+    public void CreateFleet(int fleetId, int fleetType, int ownerId)
     {
-        if (fleetUIItemPrefab != null && fleetUIContainer != null)
+        if (fleetPrefab != null && fleetContainer != null)
         {
-            GameObject fleetObj = Instantiate(fleetUIItemPrefab, fleetUIContainer);
-            var fleetItem = fleetObj.GetComponent<FleetUIItem>();
-            if (fleetItem != null)
+            GameObject fleetObj = Instantiate(fleetPrefab, fleetContainer);
+            var fleetButton = fleetObj.GetComponent<FleetUIButton>();
+            if (fleetButton != null)
             {
                 // 함대 데이터 생성
                 FleetSpawnData spawnData = new FleetSpawnData
                 {
                     FleetId = fleetId,
-                    PlanetId = planetId,
                     FleetType = fleetType,
-                    OwnerId = ownerId
+                    OwnerId = ownerId,
+                    PlanetId = ownerId // <---- todo : 수도 행성이 어딘지 몰라서 임의로 넣음
                 };
 
-                fleetItem.Setup(spawnData);
-                _fleets[fleetId] = fleetItem;
-
-                // 함대 위치를 행성 위치로 설정
-                if (_planets.TryGetValue(planetId, out GameObject planet))
-                {
-                    fleetItem.transform.position = planet.transform.position;
-                }
-
-                Debug.Log($"Fleet {fleetId} created at planet {planetId} (Owner: {ownerId}, Type: {fleetType})");
+                fleetButton.Initialize(spawnData);
+                _fleets[fleetId] = fleetButton;
             }
         }
     }
@@ -147,7 +127,7 @@ public class UnifiedVisualizationManager : MonoBehaviour
     /// <param name="toPlanetId">도착 행성 ID</param>
     public void AnimateFleetMovement(int fleetId, int fromPlanetId, int toPlanetId)
     {
-        if (_fleets.TryGetValue(fleetId, out FleetUIItem fleet))
+        if (_fleets.TryGetValue(fleetId, out FleetUIButton fleet))
         {
             FleetMoveData moveData = new FleetMoveData
             {
@@ -170,7 +150,7 @@ public class UnifiedVisualizationManager : MonoBehaviour
     /// </summary>
     /// <param name="fleet">함대 UI 아이템</param>
     /// <param name="moveData">이동 데이터</param>
-    private IEnumerator AnimateFleetMovementCoroutine(FleetUIItem fleet, FleetMoveData moveData)
+    private IEnumerator AnimateFleetMovementCoroutine(FleetUIButton fleet, FleetMoveData moveData)
     {
         Vector3 startPos = Vector3.zero;
         Vector3 endPos = Vector3.zero;
@@ -225,51 +205,45 @@ public class UnifiedVisualizationManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 행성 시각적 효과 표시 (선택, 강조 등)
+    /// 함대 선택 시각적 피드백 업데이트
     /// </summary>
-    /// <param name="planetId">행성 ID</param>
-    /// <param name="effectType">효과 유형 (0: 없음, 1: 선택, 2: 강조)</param>
-    public void ShowPlanetEffect(int planetId, int effectType)
+    /// <param name="fleetId">선택된 함대 ID. 선택 해제 시 -1 또는 음수</param>
+    public void UpdateFleetSelection(int fleetId)
     {
-        if (_planets.TryGetValue(planetId, out GameObject planet))
+        if (fleetSelectionRing == null) return;
+
+        if (fleetId >= 0 && _fleets.TryGetValue(fleetId, out FleetUIButton fleet))
         {
-            // 효과 유형에 따라 시각적 효과 적용
-            // 예: 선택 링 표시, 파티클 효과 등
-            if (effectType == 1 && planetSelectionRing != null)
-            {
-                planetSelectionRing.SetActive(true);
-                planetSelectionRing.transform.position = planet.transform.position;
-            }
+            fleetSelectionRing.SetActive(true);
+            fleetSelectionRing.transform.position = fleet.transform.position;
+            Debug.Log($"Fleet {fleetId} selected, showing selection ring.");
         }
-    }
-
-    /// <summary>
-    /// 함대 시각적 효과 표시 (선택, 강조 등)
-    /// </summary>
-    /// <param name="fleetId">함대 ID</param>
-    /// <param name="effectType">효과 유형 (0: 없음, 1: 선택, 2: 강조)</param>
-    public void ShowFleetEffect(int fleetId, int effectType)
-    {
-        if (_fleets.TryGetValue(fleetId, out FleetUIItem fleet))
+        else
         {
-            // 효과 유형에 따라 시각적 효과 적용
-            if (effectType == 1 && fleetSelectionRing != null)
-            {
-                fleetSelectionRing.SetActive(true);
-                fleetSelectionRing.transform.position = fleet.transform.position;
-            }
-        }
-    }
-
-    /// <summary>
-    /// 모든 시각적 효과 제거
-    /// </summary>
-    public void ClearAllEffects()
-    {
-        if (planetSelectionRing != null)
-            planetSelectionRing.SetActive(false);
-
-        if (fleetSelectionRing != null)
             fleetSelectionRing.SetActive(false);
+            Debug.Log("Fleet selection cleared.");
+        }
+    }
+
+    /// <summary>
+    /// 행성 선택 시각적 피드백 업데이트
+    /// </summary>
+    /// <param name="planetId">선택된 행성 ID. 선택 해제 시 -1 또는 음수</param>
+    public void UpdatePlanetSelection(int planetId)
+    {
+        if (planetSelectionRing == null) return;
+
+        if (planetId >= 0 && _planets.TryGetValue(planetId, out GameObject planet))
+        {
+            Debug.Log(planetId);
+            planetSelectionRing.SetActive(true);
+            planetSelectionRing.transform.position = planet.transform.position;
+            Debug.Log($"Planet {planetId} selected, showing selection ring.");
+        }
+        else
+        {
+            planetSelectionRing.SetActive(false);
+            Debug.Log("Planet selection cleared.");
+        }
     }
 }
