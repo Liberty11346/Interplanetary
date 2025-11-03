@@ -136,7 +136,7 @@ namespace CommonLib
                         if (_instance == null)
                         {
                             _instance = new T();
-                            
+
                             // 초기화 호출
                             if (_instance is Singleton<T> singleton)
                             {

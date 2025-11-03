@@ -13,13 +13,13 @@ namespace CommonLib
         public const int CHAT_MESSAGE = 10002;                  //메세지 전송
         public const int HEARTBEAT = 10003;                     // 하트비트 (연결 유지 확인)
         public const int REQUEST_TABLEDATA = 10004;             // 테이블 데이터 요청
-        
+
         public const int CHAT_CHANNEL_JOIN = 10100;
         public const int CHAT_CHANNEL_REFRESH = 10101;
         public const int CHAT_CHANNEL_LEFT = 10102;
 
         public const int REQUEST_JOIN_LOBBY = 10010;            //로비 접속 요청
-        
+
         public const int REFRESH_LOBBY = 10011;                 //로비 새로고침 요청
         public const int REQUEST_CREATE_ROOM = 10012;           //방 생성 요청
         public const int REQUEST_JOIN_ROOM = 10013;             //방 입장 요청

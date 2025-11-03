@@ -27,7 +27,7 @@ namespace GameClient
                         {
                             // Scene에서 기존 인스턴스 찾기
                             _instance = FindObjectOfType<T>();
-                            
+
                             if (_instance == null)
                             {
                                 // 새 GameObject 생성하고 컴포넌트 추가
@@ -44,7 +44,7 @@ namespace GameClient
 
         // --- 네트워크 클라이언트 ---
         protected ClientServerHandler networkClient;
-        
+
         // --- 공통 이벤트들 ---
         public event Action<string> OnError;
         public event Action<string> OnStatusMessage;
@@ -62,10 +62,10 @@ namespace GameClient
                 Destroy(gameObject);
                 return;
             }
-            
+
             _instance = (T)this;
             DontDestroyOnLoad(gameObject);
-            
+
             // 네트워크 클라이언트 초기화
             InitializeNetworkClient();
         }
@@ -86,24 +86,24 @@ namespace GameClient
         }
 
         // --- 추상 메서드들 (파생 클래스에서 구현 필수) ---
-        
+
         /// <summary>
         /// 매니저별 초기화 로직 (파생 클래스에서 구현)
         /// </summary>
         protected abstract void Initialize();
-        
+
         /// <summary>
         /// 네트워크 핸들러 등록 (파생 클래스에서 구현)
         /// </summary>
         protected abstract void RegisterNetworkHandlers();
-        
+
         /// <summary>
         /// 정리 작업 (파생 클래스에서 구현)
         /// </summary>
         protected abstract void Cleanup();
 
         // --- 가상 메서드들 (파생 클래스에서 선택적 오버라이드) ---
-        
+
         /// <summary>
         /// 연결 해제시 상태 초기화 (필요한 경우 오버라이드)
         /// </summary>
@@ -113,7 +113,7 @@ namespace GameClient
         }
 
         // --- 공통 네트워크 메서드들 ---
-        
+
         /// <summary>
         /// 네트워크 클라이언트 초기화
         /// </summary>
@@ -183,7 +183,7 @@ namespace GameClient
         }
 
         // --- 공통 유틸리티 메서드들 ---
-        
+
         /// <summary>
         /// 안전한 int 값 추출
         /// </summary>
@@ -254,7 +254,7 @@ namespace GameClient
         }
 
         // --- 네트워크 연결 상태 체크 ---
-        
+
         /// <summary>
         /// 네트워크 연결 상태 확인
         /// </summary>
@@ -275,7 +275,7 @@ namespace GameClient
         }
 
         // --- 기존 방식 핸들러 등록 (람다 문제 회피) ---
-        
+
         /// <summary>
         /// 기존 방식으로 핸들러 직접 등록 (람다 문제 회피)
         /// </summary>

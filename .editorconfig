@@ -1,0 +1,18 @@
+# EditorConfig helps maintain consistent coding styles between different editors/IDEs
+# This file forces UTF-8 encoding for text files to avoid accidental UTF-16/UTF-16BE saves.
+root = true
+
+[*.{cs,csproj,sln,txt,md,json,xml,yml,yaml}]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{sh,py,js,ts,css,scss,html}]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.png]
+binary = true
