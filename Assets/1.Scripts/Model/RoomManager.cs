@@ -179,7 +179,9 @@ namespace GameClient
                     // 응답 파라미터: roomId, slot
                     string roomId = response.GetParam<string>("roomId");
                     int slot = response.GetParam<int>("slot");
+                    RoomInfo roomInfo = response.GetStruct<RoomInfo>("roomInfo");
 
+                    OnRoomJoinSuccess?.Invoke(roomInfo);
                     EmitStatusMessage($"생성된 룸 ID: {roomId}, 슬롯: {slot}");
                     return true;
                 }
