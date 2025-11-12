@@ -162,6 +162,11 @@ public class GameManager : MonoBehaviour
         {
             PrintGameState();
         }
+
+        if (Input.GetKeyDown(KeyCode.F5))
+        {
+            RequestMapFromServer();
+        }
     }
 
     #region 이벤트 핸들러 - 서버로부터 받은 이벤트 처리
@@ -230,16 +235,14 @@ public class GameManager : MonoBehaviour
             // 실제 게임에서는 여기서 행성 데이터를 기반으로 시각화 요청
 
             // 예: 실제 게임 데이터가 있는 경우 행성 생성
-            /*
-            if (gameData != null && gameData.Planets != null)
+            if (gameData.Planets != null)
             {
                 foreach (var planet in gameData.Planets)
                 {
-                    visualizationManager.CreatePlanet(planet.PlanetId, planet.Position);
+                    visualizationManager.CreatePlanet(planet.PlanetId, new UnityEngine.Vector3(planet.Position.X, planet.Position.Y, 0));
                     visualizationManager.UpdatePlanetOwnership(planet.PlanetId, planet.OwnerId);
                 }
             }
-            */
 
             Debug.Log("Game visualization initialized");
         }
@@ -490,12 +493,12 @@ public class GameManager : MonoBehaviour
     }
 
     public void SelectFleet(int fleetId)
-    { 
+    {
         // 함대 선택은 항상 이동 명령의 시작점.
         // 이전에 선택된 행성이 있다면 무시하고, 함대만 선택된 상태로 만든다.
         selectedFleetId = fleetId;
         selectedPlanetId = -1; // 행성 선택 초기화
-        
+
         OnFleetSelected?.Invoke(selectedFleetId);
         OnPlanetSelected?.Invoke(selectedPlanetId); // 행성 선택 해제 알림
         Debug.Log($"Fleet {fleetId} selected. Ready for move command.");
@@ -584,6 +587,21 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 특정 플레이어의 모성 ID를 반환합니다.
+    /// </summary>
+    public int GetHomePlanetId(int playerId)
+    {
+        foreach (var planetEntry in _planetDataCache)
+        {
+            if (planetEntry.Value.OwnerId == playerId)
+            {
+                return planetEntry.Value.PlanetId;
+            }
+        }
+        return -1; // 찾지 못하면 -1 반환
+    }
+
+    /// <summary>
     /// 함대 이동 요청 - UI나 입력에서 호출
     /// </summary>
     public void CommandFleetMovement(int fleetId, int targetPlanetId)
@@ -597,15 +615,22 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 함대 생성 요청 - UI나 입력에서 호출
+    /// 함대 생성 요청 - UI 버튼에서 함대 타입만 전달
+    /// 행성 ID는 플레이어의 모성(MyHomePlanetId)으로 고정
     /// </summary>
     public void CommandFleetSpawn(int fleetType)
     {
         if (gameClient != null && gameClient.IsConnected && isGameStarted)
         {
-            // 서버에 함대 생성 요청
-            gameClient.RequestProduceFleet(fleetType);
-            Debug.Log($"Requesting fleet spawn of type {fleetType}");
+            int planetId = MyHomePlanetId;
+            if (planetId == -1)
+            {
+                Debug.LogWarning("Cannot spawn fleet: MyHomePlanetId is invalid (-1)");
+                return;
+            }
+
+            gameClient.RequestProduceFleet(planetId, fleetType);
+            Debug.Log($"Requesting fleet spawn at home planet {planetId} of type {fleetType}");
 
             // 실제 함대 생성 및 검증은 서버에서 처리
             // 서버는 자원 확인, 생산 가능 여부 등을 검증하고
@@ -614,6 +639,39 @@ public class GameManager : MonoBehaviour
     }
 
     #endregion
+
+    /// <summary>
+    /// F5: 서버에게 맵(게임 시작)을 요청하는 흐름
+    /// - 방이 없으면 생성하고 자동 입장
+    /// - 방에 입장되면 READY(true)로 서버에 시작 요청
+    /// - 서버가 GAME_STARTED 브로드캐스트를 보내면 기존 OnGameStarted로 처리됨
+    /// </summary>
+    private void RequestMapFromServer()
+    {
+        if (gameClient == null || !gameClient.IsConnected)
+        {
+            Debug.LogWarning("서버에 연결되어 있지 않습니다. 먼저 연결 후 시도하세요.");
+            return;
+        }
+
+        Debug.Log("F5: 서버에 맵(게임 시작) 요청 흐름 시작");
+
+        // 룸 입장 성공 시 READY(true) 자동 전송 (한 번만 구독)
+        void OnJoined(string roomId, int playerCount)
+        {
+            Debug.Log($"룸 입장 성공: {roomId} (플레이어 {playerCount}) → READY 요청");
+            gameClient.JoinRoomSuccess -= OnJoined;
+            gameClient.RequestReady(true);
+        }
+        gameClient.JoinRoomSuccess += OnJoined;
+
+        // 디버그용 기본 값으로 방을 생성하고, 응답에서 자동 입장 수행
+        // UnityGameClient.HandleResponse에서 REQUEST_CREATE_ROOM 성공 시 JoinRoom을 자동 호출합니다.
+        string roomName = "DebugRoom";
+        int mapId = 0; // 서버에 존재하는 맵 인덱스 사용 (필요 시 변경)
+        bool isPrivate = false;
+        gameClient.CreateRoom(roomName, mapId, isPrivate);
+    }
 
     /// <summary>
     /// 컴포넌트 제거 시 이벤트 구독 해제

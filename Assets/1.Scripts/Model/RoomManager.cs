@@ -7,10 +7,44 @@ using CommonLib;
 namespace GameClient
 {
     /// <summary>
-    /// MVP 패턴의 Model - 룸 관리 및 서버 통신 담당 (BaseManager 상속, 에러 수정 버전)
+    /// 룸 관리 및 서버 통신 담당 (BaseManager 의존성 제거)
     /// </summary>
-    public class RoomManager : BaseManager<RoomManager>
+    public class RoomManager : MonoBehaviour
     {
+        // --- 싱글톤 ---
+        private static RoomManager _instance;
+        private static readonly object _lock = new object();
+
+        public static RoomManager Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    lock (_lock)
+                    {
+                        if (_instance == null)
+                        {
+                            _instance = FindObjectOfType<RoomManager>();
+                            if (_instance == null)
+                            {
+                                GameObject go = new GameObject(typeof(RoomManager).Name);
+                                _instance = go.AddComponent<RoomManager>();
+                                DontDestroyOnLoad(go);
+                            }
+                        }
+                    }
+                }
+                return _instance;
+            }
+        }
+
+        // --- 네트워크 및 공통 이벤트 ---
+        private ClientServerHandler networkClient;
+        private bool isInitialized = false;
+        public bool IsInitialized => isInitialized;
+        public event Action<string> OnError;
+        public event Action<string> OnStatusMessage;
         // --- 룸 관련 이벤트들 ---
         public event Action<RoomInfo> OnRoomJoinSuccess;
         public event Action<string> OnRoomJoinFailure;
@@ -27,16 +61,40 @@ namespace GameClient
         public bool IsInRoom => isInRoom;
         public List<RoomInfo> CachedRoomList => new List<RoomInfo>(cachedRoomList);
 
-        // --- BaseManager 필수 구현 메서드들 ---
-        
-        protected override void Initialize()
+        // --- 초기화 및 생명주기 ---
+        private void Awake()
         {
+            if (_instance != null && _instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            _instance = this;
+            DontDestroyOnLoad(gameObject);
+
+            try
+            {
+                networkClient = ClientServerHandler.Instance;
+                if (networkClient != null)
+                {
+                    Debug.Log("[RoomManager] 네트워크 클라이언트 연결됨");
+                }
+                else
+                {
+                    Debug.LogError("[RoomManager] 네트워크 클라이언트를 찾을 수 없음");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[RoomManager] 네트워크 클라이언트 초기화 실패: {e.Message}");
+            }
+
             RegisterNetworkHandlers();
             isInitialized = true;
             EmitStatusMessage("RoomManager 초기화 완료");
         }
 
-        protected override void RegisterNetworkHandlers()
+        private void RegisterNetworkHandlers()
         {
             // 룸 관련 브로드캐스트 메시지 처리
             RegisterHandler(ProtocolType.BRODCAST_SYSTEM, HandleRoomBroadcast);
@@ -46,7 +104,16 @@ namespace GameClient
             RegisterHandler(ProtocolType.ROOM_CLOSED, HandleRoomClosed);
         }
 
-        protected override void Cleanup()
+        private void OnDestroy()
+        {
+            if (_instance == this)
+            {
+                Cleanup();
+                _instance = null;
+            }
+        }
+
+        private void Cleanup()
         {
             currentRoom = null;
             isInRoom = false;
@@ -54,9 +121,8 @@ namespace GameClient
             EmitStatusMessage("RoomManager 정리 완료");
         }
 
-        public override void Reset()
+        public void Reset()
         {
-            base.Reset();
             currentRoom = null;
             isInRoom = false;
             cachedRoomList.Clear();
@@ -84,7 +150,7 @@ namespace GameClient
                     int roomCount = response.GetParam<int>("roomCount");
                     int responsePage = response.GetParam<int>("page");
                     var roomListData = response.GetParam<object[]>("roomList");
-                    
+
                     cachedRoomList.Clear();
 
                     if (roomListData != null)
@@ -103,7 +169,7 @@ namespace GameClient
                     OnRoomListUpdated?.Invoke(cachedRoomList);
                     return true;
                 }
-                
+
                 return false;
             }
             catch (Exception e)
@@ -148,7 +214,7 @@ namespace GameClient
                     OnRoomListUpdated?.Invoke(cachedRoomList);
                     return true;
                 }
-                
+
                 return false;
             }
             catch (Exception e)
@@ -188,7 +254,7 @@ namespace GameClient
                     string failureReason = response.GetParam<string>("message");
                     if (string.IsNullOrEmpty(failureReason))
                         failureReason = response.resultCode.ToString();
-                    
+
                     OnRoomJoinFailure?.Invoke(failureReason);
                     return false;
                 }
@@ -221,7 +287,7 @@ namespace GameClient
                     // 응답 파라미터: roomInfo, chatChannelID
                     var roomInfoData = response.GetParam<Dictionary<string, object>>("roomInfo");
                     string chatChannelID = response.GetParam<string>("chatChannelID");
-                    
+
                     if (roomInfoData != null)
                     {
                         currentRoom = ParseRoomInfo(roomInfoData);
@@ -242,7 +308,7 @@ namespace GameClient
                     string failureReason = response.GetParam<string>("message");
                     if (string.IsNullOrEmpty(failureReason))
                         failureReason = response.resultCode.ToString();
-                    
+
                     OnRoomJoinFailure?.Invoke(failureReason);
                     return false;
                 }
@@ -283,7 +349,7 @@ namespace GameClient
                     OnRoomLeft?.Invoke();
                     return true;
                 }
-                
+
                 return false;
             }
             catch (Exception e)
@@ -335,7 +401,7 @@ namespace GameClient
         /// </summary>
         public List<RoomInfo> GetJoinableRooms()
         {
-            return cachedRoomList.FindAll(room => 
+            return cachedRoomList.FindAll(room =>
                 room.RoomState == CommonLib.RoomState.Open && room.PlayerCount < room.MaxPlayers);
         }
 
@@ -378,7 +444,7 @@ namespace GameClient
             if (roomInfoData != null)
             {
                 var updatedRoom = ParseRoomInfo(roomInfoData);
-                
+
                 // 현재 룸 정보 업데이트
                 if (isInRoom && currentRoom.HasValue && currentRoom.Value.RoomId == updatedRoom.RoomId)
                 {
@@ -404,7 +470,7 @@ namespace GameClient
         private async Task HandleRoomClosed(Protocol protocol)
         {
             string closedRoomId = protocol.GetParam<string>("roomId");
-            
+
             // 현재 있던 룸이 폐쇄된 경우
             if (isInRoom && currentRoom.HasValue && currentRoom.Value.RoomId == closedRoomId)
             {
@@ -428,11 +494,18 @@ namespace GameClient
         {
             if (isInRoom && currentRoom.HasValue)
             {
-                string userName = protocol.GetParam<string>("userName");
+                // 서버는 userName이 아닌 userId를 브로드캐스트합니다.
+                string userIdStr = protocol.GetParam<string>("userId");
+                if (string.IsNullOrEmpty(userIdStr))
+                {
+                    // 혹시 int로 올 경우 대비
+                    int uid = protocol.GetParam<int>("userId");
+                    userIdStr = uid.ToString();
+                }
                 int newPlayerCount = protocol.GetParam<int>("playerCount");
-                
-                EmitStatusMessage($"유저 입장: {userName} (총 {newPlayerCount}명)");
-                
+
+                EmitStatusMessage($"유저 입장: {userIdStr} (총 {newPlayerCount}명)");
+
                 // 현재 룸 정보 업데이트
                 var updatedRoom = currentRoom.Value;
                 updatedRoom.PlayerCount = newPlayerCount;
@@ -449,10 +522,16 @@ namespace GameClient
         {
             if (isInRoom && currentRoom.HasValue)
             {
-                string userName = protocol.GetParam<string>("userName");
+                // 서버는 userName이 아닌 userId를 브로드캐스트합니다.
+                string userIdStr = protocol.GetParam<string>("userId");
+                if (string.IsNullOrEmpty(userIdStr))
+                {
+                    int uid = protocol.GetParam<int>("userId");
+                    userIdStr = uid.ToString();
+                }
                 int newPlayerCount = protocol.GetParam<int>("playerCount");
                 
-                EmitStatusMessage($"유저 퇴장: {userName} (총 {newPlayerCount}명)");
+                EmitStatusMessage($"유저 퇴장: {userIdStr} (총 {newPlayerCount}명)");
                 
                 // 현재 룸 정보 업데이트
                 var updatedRoom = currentRoom.Value;
@@ -461,6 +540,148 @@ namespace GameClient
             }
 
             await Task.CompletedTask;
+        }
+
+        // --- UI 호출용 간단 래퍼 메서드들 ---
+        public async void JoinLobby(int page = 0)
+        {
+            await RequestJoinLobbyAsync(page);
+        }
+
+        public async void RefreshRoomList()
+        {
+            await RefreshLobbyAsync();
+        }
+
+        public async void CreateRoom(string roomName, string mapId, bool isPrivate = false)
+        {
+            await RequestCreateRoomAsync(roomName, mapId, isPrivate);
+        }
+
+        public async void JoinRoom(string roomId, int slot = -1)
+        {
+            await RequestJoinRoomAsync(roomId, slot);
+        }
+
+        public async void LeaveRoom()
+        {
+            await RequestLeaveRoomAsync();
+        }
+
+        public async void SetReady(bool isReady)
+        {
+            await RequestReadyAsync(isReady);
+        }
+
+        // --- 공통 유틸리티 (BaseManager 대체) ---
+        private void EmitStatusMessage(string message)
+        {
+            Debug.Log($"[RoomManager] {message}");
+            OnStatusMessage?.Invoke(message);
+        }
+
+        private void EmitError(string error)
+        {
+            Debug.LogError($"[RoomManager] {error}");
+            OnError?.Invoke(error);
+        }
+
+        private bool IsNetworkReady()
+        {
+            return networkClient != null && networkClient.IsConnected;
+        }
+
+        private void ValidateNetworkConnection()
+        {
+            if (!IsNetworkReady())
+            {
+                throw new InvalidOperationException("서버에 연결되지 않았습니다");
+            }
+        }
+
+        private void RegisterHandler(int protocolType, ProtocolHandler.ProtocolHandlerDelegate handler)
+        {
+            if (networkClient != null)
+            {
+                networkClient.RegisterHandler(protocolType, handler);
+                Debug.Log($"[RoomManager] 핸들러 등록됨: {protocolType}");
+            }
+            else
+            {
+                Debug.LogError($"[RoomManager] 네트워크 클라이언트가 없어 핸들러 등록 실패: {protocolType}");
+            }
+        }
+
+        private async Task<NetworkResponse> SafeSendAsync(Protocol protocol, string operationName = "")
+        {
+            try
+            {
+                if (networkClient == null)
+                {
+                    throw new InvalidOperationException("네트워크 클라이언트가 초기화되지 않음");
+                }
+
+                if (!string.IsNullOrEmpty(operationName))
+                {
+                    Debug.Log($"[RoomManager] {operationName} 요청 중...");
+                }
+
+                NetworkResponse response = await networkClient.AsyncSend(protocol);
+
+                if (response.isSuccess)
+                {
+                    if (!string.IsNullOrEmpty(operationName))
+                    {
+                        Debug.Log($"[RoomManager] {operationName} 성공");
+                    }
+                }
+                else
+                {
+                    string errorMsg = $"{operationName} 실패: {response.resultCode}";
+                    Debug.LogError($"[RoomManager] {errorMsg}");
+                    OnError?.Invoke(errorMsg);
+                    response.ShowResultCode();
+                }
+
+                return response;
+            }
+            catch (Exception e)
+            {
+                string errorMsg = $"{operationName} 오류: {e.Message}";
+                Debug.LogError($"[RoomManager] {errorMsg}");
+                OnError?.Invoke(errorMsg);
+                throw;
+            }
+        }
+
+        // 안전한 값 파싱 유틸리티
+        private int GetIntValue(Dictionary<string, object> data, string key, int defaultValue = 0)
+        {
+            if (data != null && data.TryGetValue(key, out object value))
+            {
+                if (value is int intValue) return intValue;
+                if (int.TryParse(value.ToString(), out int parsedValue)) return parsedValue;
+            }
+            return defaultValue;
+        }
+
+        private string GetStringValue(Dictionary<string, object> data, string key, string defaultValue = "")
+        {
+            if (data != null && data.TryGetValue(key, out object value))
+            {
+                return value?.ToString() ?? defaultValue;
+            }
+            return defaultValue;
+        }
+
+        private bool GetBoolValue(Dictionary<string, object> data, string key, bool defaultValue = false)
+        {
+            if (data != null && data.TryGetValue(key, out object value))
+            {
+                if (value is bool boolValue) return boolValue;
+                if (bool.TryParse(value.ToString(), out bool parsedValue)) return parsedValue;
+            }
+            return defaultValue;
         }
     }
 
@@ -473,7 +694,7 @@ namespace GameClient
         {
             // 싱글톤으로 인스턴스 가져오기
             var roomManager = RoomManager.Instance;
-            
+
             // 이벤트 등록
             roomManager.OnRoomJoinSuccess += OnRoomJoined;
             roomManager.OnRoomJoinFailure += OnRoomJoinFailed;
