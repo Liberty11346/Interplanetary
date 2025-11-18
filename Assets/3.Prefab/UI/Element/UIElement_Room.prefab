@@ -284,7 +284,7 @@ GameObject:
   - component: {fileID: 8888367543130110433}
   - component: {fileID: 678235984631690354}
   m_Layer: 5
-  m_Name: Room
+  m_Name: UIElement_Room
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -340,6 +340,7 @@ MonoBehaviour:
   txt_mapName: {fileID: 14680201307280699}
   btnEnterButton: {fileID: 4910716501350132169}
   roomId: 0
+  roomState: 0
 --- !u!1 &4141573681471336383
 GameObject:
   m_ObjectHideFlags: 0
@@ -739,7 +740,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_Sprite: {fileID: -733562097, guid: 5675f9f95ff6b1c43ae7caa5e0b93ad5, type: 3}
-  m_Type: 0
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4

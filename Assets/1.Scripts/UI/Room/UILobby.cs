@@ -1,7 +1,7 @@
 using CommonLib;
 using UnityEngine;
 
-public class LobbyController : MonoBehaviour
+public class UILobby : MonoBehaviour
 {
     [SerializeField] private UIRoomList roomList;
 
