@@ -60,9 +60,10 @@ public class GameUIManager : MonoBehaviour
 
         if (produceFleetButton != null)
             produceFleetButton.onClick.AddListener(() => {
-                if (GameManager.Instance != null && GameManager.Instance.MyHomePlanetId != -1)
+                if (GameManager.Instance != null)
                 {
-                    _gameClient.RequestProduceFleet(GameManager.Instance.MyHomePlanetId);
+                    // 버튼에서는 함대 타입만 전달 (임시로 0)
+                    GameManager.Instance.CommandFleetSpawn(0);
                 }
             });
 
@@ -104,9 +105,10 @@ public class GameUIManager : MonoBehaviour
         // 스페이스바로 함대 생산
         if (Input.GetKeyDown(KeyCode.Space) && _gameClient != null && _gameClient.IsConnected)
         {
-            if (GameManager.Instance != null && GameManager.Instance.MyHomePlanetId != -1)
+            if (GameManager.Instance != null)
             {
-                _gameClient.RequestProduceFleet(GameManager.Instance.MyHomePlanetId);
+                // 스페이스바 입력도 GameManager 경유, 함대 타입만 전달 (임시로 0)
+                GameManager.Instance.CommandFleetSpawn(0);
             }
         }
     }
