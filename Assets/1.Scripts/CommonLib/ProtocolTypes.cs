@@ -7,10 +7,10 @@ namespace CommonLib
     /// </summary>
     public static class ProtocolType
     {
-        // 클라이언트 -> 서버
+        // 클라이언트 -> 서버 (서버 공통 타입과 정확히 일치)
         public const int REQUEST_LOGIN = 10000;                 // 로그인 요청
-        public const int REQUEST_LOGOUT = 10001;                //로그아웃 요청
-        public const int CHAT_MESSAGE = 10002;                  //메세지 전송
+        public const int REQUEST_LOGOUT = 10001;                // 로그아웃 요청
+        public const int CHAT_MESSAGE = 10002;                  // 메세지 전송
         public const int HEARTBEAT = 10003;                     // 하트비트 (연결 유지 확인)
         public const int REQUEST_TABLEDATA = 10004;             // 테이블 데이터 요청
 
@@ -18,15 +18,14 @@ namespace CommonLib
         public const int CHAT_CHANNEL_REFRESH = 10101;
         public const int CHAT_CHANNEL_LEFT = 10102;
 
-        public const int REQUEST_JOIN_LOBBY = 10010;            //로비 접속 요청
-
-        public const int REFRESH_LOBBY = 10011;                 //로비 새로고침 요청
-        public const int REQUEST_CREATE_ROOM = 10012;           //방 생성 요청
-        public const int REQUEST_JOIN_ROOM = 10013;             //방 입장 요청
+        public const int REQUEST_JOIN_LOBBY = 10010;            // 로비 접속 요청
+        public const int REFRESH_LOBBY = 10011;                 // 로비 새로고침 요청
+        public const int REQUEST_CREATE_ROOM = 10012;           // 방 생성 요청
+        public const int REQUEST_JOIN_ROOM = 10013;             // 방 입장 요청
         public const int REQUEST_READY = 10014;                 // 게임 레디
         public const int REQUEST_LEFT_ROOM = 10015;             // 방 퇴장 요청
 
-        // 서버 -> 클라이언트
+        // 서버 -> 클라이언트 (서버 공통 타입과 정확히 일치)
         public const int RESPONSE = 20000;                      // 전체 공통 응답처리
         public const int BRODCAST_SYSTEM = 20001;               // 시스템 공통 알림
         public const int BRODCAST_CHAT_MESSAGE = 20002;         // 메시지 브로드캐스트
@@ -36,6 +35,15 @@ namespace CommonLib
         public const int USER_LEFT = 20011;                     // 유저 이탈 알림
         public const int ROOM_INFO_CHANGED = 20012;             // 방 정보 변경 알림
         public const int ROOM_CLOSED = 20013;                   // 방 삭제 알림
+
+        // 게임 브로드캐스트 (인게임 이벤트)
+        public const int GAME_STARTED = 20020;                   // 게임 시작 알림
+        public const int RESOURCES_UPDATED = 20021;              // 자원 갱신 알림
+        public const int FLEET_SPAWNED = 20022;                  // 함대 생성 알림
+        public const int FLEET_MOVING = 20023;                   // 함대 이동 진행 알림
+        public const int COMBAT_ENDED = 20024;                   // 전투 종료 알림
+        public const int PLANET_CONQUERED = 20025;               // 행성 점령 알림
+        public const int GAME_ENDED = 20026;                     // 게임 종료 알림
 
         public const int SUBMIT_COMMAND = 3010;
     }

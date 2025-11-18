@@ -75,7 +75,7 @@ public class VisualizationManager : MonoBehaviour
         {
             // 지정된 위치에 행성 프리팹을 생성하고, 컨테이너의 자식으로 설정합니다.
             GameObject planetObj = Instantiate(planetPrefab, position, Quaternion.identity, planetContainer);
-            
+
             // 이동 및 선택 로직을 위해 생성된 행성 게임 오브젝트를 딕셔너리에 캐싱합니다.
             _planets[planetId] = planetObj;
 
@@ -106,12 +106,13 @@ public class VisualizationManager : MonoBehaviour
             if (fleetButton != null)
             {
                 // 함대 데이터 생성
+                int homePlanetId = GameManager.Instance.GetHomePlanetId(ownerId);
                 FleetSpawnData spawnData = new FleetSpawnData
                 {
                     FleetId = fleetId,
                     FleetType = fleetType,
                     OwnerId = ownerId,
-                    PlanetId = ownerId // <---- todo : 수도 행성이 어딘지 몰라서 임의로 넣음
+                    PlanetId = homePlanetId
                 };
 
                 fleetButton.Initialize(spawnData);

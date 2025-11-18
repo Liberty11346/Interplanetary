@@ -14,6 +14,8 @@ public class FleetUIButton : MonoBehaviour
     [Header("Visual Settings")]
     public FleetData fleetData;
     public float moveSpeed = 200f; // UI 픽셀 단위
+    public Sprite player1Sprite;
+    public Sprite player2Sprite;
 
     [Header("UI Components")]
     public Button fleetButton;
@@ -62,8 +64,7 @@ public class FleetUIButton : MonoBehaviour
 
         if (fleetImage != null)
         {
-            //fleetImage.sprite = _ownerId == 1 ? player1Sprite : player2Sprite;
-            // todo 데이터에서 스프라이트 받기?
+            fleetImage.sprite = _ownerId == 1 ? player1Sprite : player2Sprite;
         }
 
         // 행성 위치로 이동
