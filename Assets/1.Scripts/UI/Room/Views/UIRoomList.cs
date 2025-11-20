@@ -29,11 +29,11 @@ public class UIRoomList : MonoBehaviour
     [SerializeField] private bool showDebugInfo = false;
 
     private ObjectPool<UIElement_Room> roomPool;
-    private Dictionary<int, UIElement_Room> roomDictionary = new Dictionary<int, UIElement_Room>();
+    private Dictionary<string, UIElement_Room> roomDictionary = new Dictionary<string, UIElement_Room>();
     private RoomState currentFilter = RoomState.All;
 
     // 방 입장 이벤트
-    public System.Action<int> OnRoomEnterRequested;
+    public System.Action<string> OnRoomEnterRequested;
 
     #region Unity Lifecycle
 
@@ -238,7 +238,7 @@ public class UIRoomList : MonoBehaviour
         }
     }
 
-    public void RemoveRoom(int roomId)
+    public void RemoveRoom(string roomId)
     {
         if (roomDictionary.TryGetValue(roomId, out var room))
         {
@@ -287,7 +287,7 @@ public class UIRoomList : MonoBehaviour
 
     #region Room Enter Event
 
-    private void OnRoomEnterClicked(int roomId)
+    private void OnRoomEnterClicked(string roomId)
     {
         if (showDebugInfo)
         {
@@ -394,7 +394,7 @@ public class UIRoomList : MonoBehaviour
         return roomDictionary.Count;
     }
 
-    public UIElement_Room GetRoom(int roomId)
+    public UIElement_Room GetRoom(string roomId)
     {
         roomDictionary.TryGetValue(roomId, out var room);
         return room;
@@ -453,7 +453,7 @@ public class UIRoomList : MonoBehaviour
             {
                 new UIElement_Room.Data
                 {
-                    roomId = 1,
+                    roomId = "1",
                     roomName = "초보자 방",
                     playerCount = 2,
                     playerMaxCount = 4,
@@ -462,7 +462,7 @@ public class UIRoomList : MonoBehaviour
                 },
                 new UIElement_Room.Data
                 {
-                    roomId = 2,
+                    roomId = "2",
                     roomName = "고수방",
                     playerCount = 4,
                     playerMaxCount = 4,
@@ -471,7 +471,7 @@ public class UIRoomList : MonoBehaviour
                 },
                 new UIElement_Room.Data
                 {
-                    roomId = 3,
+                    roomId = 3.ToString(),
                     roomName = "배틀 아레나",
                     playerCount = 3,
                     playerMaxCount = 6,
@@ -480,7 +480,7 @@ public class UIRoomList : MonoBehaviour
                 },
                 new UIElement_Room.Data
                 {
-                    roomId = 4,
+                    roomId = 4.ToString(),
                     roomName = "점검 중",
                     playerCount = 0,
                     playerMaxCount = 8,
@@ -489,7 +489,7 @@ public class UIRoomList : MonoBehaviour
                 },
                 new UIElement_Room.Data
                 {
-                    roomId = 5,
+                    roomId = 5.ToString(),
                     roomName = "VIP 라운지",
                     playerCount = 1,
                     playerMaxCount = 4,

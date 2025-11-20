@@ -13,7 +13,7 @@ public class UIElement_Room : MonoBehaviour
     private const string MAP_FORMAT = "맵: MAP";
     public class Data
     {
-        public int roomId;
+        public string roomId;
         public int playerCount;
         public int playerMaxCount;
         public string roomName;
@@ -31,14 +31,14 @@ public class UIElement_Room : MonoBehaviour
     [SerializeField]
     Button btnEnterButton;
     [SerializeField]
-    int roomId;
+    string roomId;
     [SerializeField]
     RoomState roomState;
 
-    public int RoomId => roomId;
+    public string RoomId => roomId;
     public RoomState State => roomState;
 
-    public System.Action<int> OnClickedEnter;
+    public System.Action<string> OnClickedEnter;
     private void Awake()
     {
         btnEnterButton.onClick.AddListener(HandleOnClick);
