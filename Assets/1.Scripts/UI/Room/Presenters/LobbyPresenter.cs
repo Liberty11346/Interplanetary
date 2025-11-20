@@ -2,6 +2,13 @@ using CommonLib;
 using GameClient;
 using UnityEngine;
 using System.Collections.Generic;
+using System.Xml.Linq;
+using Unity.VisualScripting;
+using UnityEditor.PackageManager;
+using UnityEngine.InputSystem;
+using System;
+using System.Linq;
+using UnityEditor.EditorTools;
 
 public class LobbyPresenter
 {
@@ -13,13 +20,29 @@ public class LobbyPresenter
     public System.Action<UIRoomList.Data> OnRefreshRoomList;
 
     RoomManager roomManager;
+    List<RoomState> stateValues = new List<RoomState>();
+    UIWindow_CreateRoom.Data createRoomData = new UIWindow_CreateRoom.Data();
 
     public LobbyPresenter()
     {
         roomManager = RoomManager.Instance;
         roomManager.OnRoomJoinSuccess += RoomManager_OnRoomJoinSuccess;
         roomManager.OnRoomListUpdated += RoomManager_OnRoomListUpdated;
+
+        foreach (var item in Enum.GetValues(typeof(RoomState)).Cast<RoomState>().ToList())
+        {
+            stateValues.Add(item);
+        }
+
+        createRoomData.defaultRoomName = "나의 방";
+        // 나중에 DB에서 테이블 불러오면 그거로 세팅하기
+        createRoomData.maps = new List<string>()
+        {
+            "RUERY SPACE",
+            "TWISTED LIBRA"
+        };
     }
+    public UIWindow_CreateRoom.Data UIWindow_CreateRoomData => createRoomData;
 
     private void RoomManager_OnRoomListUpdated(List<RoomInfo> obj)
     {
@@ -57,11 +80,28 @@ public class LobbyPresenter
         roomManager.RequestJoinLobbyAsync();
     }
 
+    public void RequestRefreshRoomList()
+    {
+        roomManager.RefreshRoomList();
+    }
+
     public void HandleRoomEnter(string roomId)
     {
         Debug.Log($"LobbyController: Attempting to enter room {roomId}");
 
         // 서버에 방 입장 요청
         roomManager.RequestJoinRoomAsync(roomId);
+    }
+
+    public RoomState IndexToState(int index)
+    {
+        if (stateValues.Count <= index || index < 0)
+            return RoomState.None;
+        return stateValues[index];
+    }
+
+    public void RequestCreateRoom(string roomName, int mapIndex, bool IsPrivate)
+    {
+        roomManager.RequestCreateRoomAsync(roomName, mapIndex, IsPrivate);
     }
 }

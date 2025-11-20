@@ -172,7 +172,7 @@ public class UnityGameClient : MonoBehaviour
     [ContextMenu("Debug/Connect to My Server")]
     public void DebugConnectToMyServer()
     {
-        DebugConnect("127.0.0.1", 7777);
+        DebugConnect(serverAddress, serverPort);
     }
 
     public void DebugConnect(string address = "127.0.0.1", int port = 7777)

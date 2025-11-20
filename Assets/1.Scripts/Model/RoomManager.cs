@@ -227,7 +227,7 @@ namespace GameClient
         /// <summary>
         /// 룸 생성 요청
         /// </summary>
-        public async Task<bool> RequestCreateRoomAsync(string roomName, string mapId, bool isPrivate = false)
+        public async Task<bool> RequestCreateRoomAsync(string roomName, int mapId, bool isPrivate = false)
         {
             try
             {
@@ -545,6 +545,8 @@ namespace GameClient
         }
 
         // --- UI 호출용 간단 래퍼 메서드들 ---
+
+        [ContextMenu("JoinLobby")]
         public async void JoinLobby(int page = 0)
         {
             await RequestJoinLobbyAsync(page);
@@ -555,7 +557,7 @@ namespace GameClient
             await RefreshLobbyAsync();
         }
 
-        public async void CreateRoom(string roomName, string mapId, bool isPrivate = false)
+        public async void CreateRoom(string roomName, int mapId, bool isPrivate = false)
         {
             await RequestCreateRoomAsync(roomName, mapId, isPrivate);
         }
@@ -717,7 +719,7 @@ namespace GameClient
             await RoomManager.Instance.RefreshLobbyAsync();
         }
 
-        public async void CreateRoom(string roomName, string mapId, bool isPrivate = false)
+        public async void CreateRoom(string roomName, int mapId, bool isPrivate = false)
         {
             await RoomManager.Instance.RequestCreateRoomAsync(roomName, mapId, isPrivate);
         }
