@@ -8,24 +8,28 @@ namespace CommonLib
     public static class ProtocolType
     {
         // 클라이언트 -> 서버 (서버 공통 타입과 정확히 일치)
+        // 클라이언트 -> 서버
         public const int REQUEST_LOGIN = 10000;                 // 로그인 요청
-        public const int REQUEST_LOGOUT = 10001;                // 로그아웃 요청
-        public const int CHAT_MESSAGE = 10002;                  // 메세지 전송
+        public const int REQUEST_LOGOUT = 10001;                //로그아웃 요청
+        public const int CHAT_MESSAGE = 10002;                  //메세지 전송
         public const int HEARTBEAT = 10003;                     // 하트비트 (연결 유지 확인)
         public const int REQUEST_TABLEDATA = 10004;             // 테이블 데이터 요청
+        public const int REQUEST_REGISTER = 10005;              // 회원가입 요청
+        public const int REQUEST_REGISTER_AUTO = 10006;         // 자동 회원가입 요청 (게스트)
 
         public const int CHAT_CHANNEL_JOIN = 10100;
         public const int CHAT_CHANNEL_REFRESH = 10101;
         public const int CHAT_CHANNEL_LEFT = 10102;
 
-        public const int REQUEST_JOIN_LOBBY = 10010;            // 로비 접속 요청
-        public const int REFRESH_LOBBY = 10011;                 // 로비 새로고침 요청
-        public const int REQUEST_CREATE_ROOM = 10012;           // 방 생성 요청
-        public const int REQUEST_JOIN_ROOM = 10013;             // 방 입장 요청
+        public const int REQUEST_JOIN_LOBBY = 10010;            //로비 접속 요청
+
+        public const int REFRESH_LOBBY = 10011;                 //로비 새로고침 요청
+        public const int REQUEST_CREATE_ROOM = 10012;           //방 생성 요청
+        public const int REQUEST_JOIN_ROOM = 10013;             //방 입장 요청
         public const int REQUEST_READY = 10014;                 // 게임 레디
         public const int REQUEST_LEFT_ROOM = 10015;             // 방 퇴장 요청
 
-        // 서버 -> 클라이언트 (서버 공통 타입과 정확히 일치)
+        // 서버 -> 클라이언트
         public const int RESPONSE = 20000;                      // 전체 공통 응답처리
         public const int BRODCAST_SYSTEM = 20001;               // 시스템 공통 알림
         public const int BRODCAST_CHAT_MESSAGE = 20002;         // 메시지 브로드캐스트
