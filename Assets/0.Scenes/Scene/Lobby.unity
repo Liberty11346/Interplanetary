@@ -128,8 +128,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 112482516}
-  - component: {fileID: 112482517}
   - component: {fileID: 112482518}
+  - component: {fileID: 112482520}
+  - component: {fileID: 112482519}
   m_Layer: 0
   m_Name: LobbyUIControll
   m_TagString: Untagged
@@ -152,22 +153,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &112482517
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 112482514}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 934328630242fe340a511241b9c03020, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  serverAddress: localhost
-  serverPort: 9000
-  autoConnect: 1
-  enableDebugLogs: 1
 --- !u!114 &112482518
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -178,6 +163,39 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 225ce3cfa9df8204ea403a4ea8d7d869, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &112482519
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 112482514}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 72afbd56d0290e749a4d73544f617d22, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  serverAddress: 125.137.73.37
+  serverPort: 9000
+  testUsername: aaaa
+  testPassword: 1q2w3e4r
+  isConnected: 0
+  lastResult: "\uC5F0\uACB0 \uC624\uB958: The following game object is invoking the
+    DontDestroyOnLoad method: (singleton) CommonLib.ClientServerHandler. Notice that
+    DontDestroyOnLoad can only be used in play mode and, as such, cannot be part
+    of an editor script."
+--- !u!114 &112482520
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 112482514}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dfcd75b5a7ce704408c52eb2ea24ff2c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
 --- !u!1001 &272440976
@@ -632,11 +650,66 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1002856624 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 854739580785614279, guid: b01301b1ee17af24db8cb2a3e398f286, type: 3}
+  m_PrefabInstance: {fileID: 5267592435489888051}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!224 &1255589608 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 7776141617458537624, guid: b01301b1ee17af24db8cb2a3e398f286, type: 3}
   m_PrefabInstance: {fileID: 5267592435489888051}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1684865199
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1684865201}
+  - component: {fileID: 1684865200}
+  m_Layer: 0
+  m_Name: (singleton) CommonLib.ClientServerHandler
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1684865200
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1684865199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7dd018a3928d22442af9c504e83c083d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!4 &1684865201
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1684865199}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &5267592435489888051
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -645,9 +718,25 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 652191124}
     m_Modifications:
+    - target: {fileID: 2714666904846847468, guid: b01301b1ee17af24db8cb2a3e398f286, type: 3}
+      propertyPath: m_Name
+      value: LoginButton
+      objectReference: {fileID: 0}
+    - target: {fileID: 2714666904846847468, guid: b01301b1ee17af24db8cb2a3e398f286, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6407625041237136106, guid: b01301b1ee17af24db8cb2a3e398f286, type: 3}
+      propertyPath: registerBtn
+      value: 
+      objectReference: {fileID: 1002856624}
     - target: {fileID: 6625518452986867685, guid: b01301b1ee17af24db8cb2a3e398f286, type: 3}
       propertyPath: m_Name
       value: UIWindow_Login
+      objectReference: {fileID: 0}
+    - target: {fileID: 6625518452986867685, guid: b01301b1ee17af24db8cb2a3e398f286, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7776141617458537624, guid: b01301b1ee17af24db8cb2a3e398f286, type: 3}
       propertyPath: m_Pivot.x
@@ -742,3 +831,4 @@ SceneRoots:
   - {fileID: 500543666}
   - {fileID: 112482516}
   - {fileID: 652191124}
+  - {fileID: 1684865201}
