@@ -43,6 +43,5 @@ public class UIWindow_CreateRoom : MonoBehaviour
             mapDropdown.options.Add(new TMP_Dropdown.OptionData(map));
         }
         mapDropdown.RefreshShownValue();
-        mapDropdown.Show();
     }
 }

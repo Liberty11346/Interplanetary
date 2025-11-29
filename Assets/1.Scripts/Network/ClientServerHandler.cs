@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -9,11 +10,42 @@ namespace CommonLib
     /// 클라이언트에서 서버와의 통신을 관리하는 싱글톤 핸들러.
     /// NetworkManager를 활용하여 네트워크 통신을 처리합니다.
     /// </summary>
-    public sealed class ClientServerHandler : SingletonBase<ClientServerHandler>
+    public sealed class ClientServerHandler
     {
+        // --- 싱글톤 ---
+        private static ClientServerHandler _instance;
+        private static readonly object _lock = new object();
+
+        public static ClientServerHandler Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    lock (_lock)
+                    {
+                        if (_instance == null)
+                        {
+                            _instance = new ClientServerHandler();
+                        }
+                    }
+                }
+                return _instance;
+            }
+        }
+
+        // --- 생성자 (자동 초기화) ---
+        private ClientServerHandler()
+        {
+            OnInitialize();
+        }
+
+        private string serverAddress = "127.0.0.1";
+        private int serverPort = 9000;
+
         // --- NetworkManager 인스턴스 ---
-        private NetworkManager networkManager;
-        private ProtocolHandler protocolHandler;
+        private NetworkManager networkManager =  new NetworkManager();
+        private ProtocolHandler protocolHandler = new ProtocolHandler();
 
         // --- UI 관련 프로토콜 목록 ---
         private readonly int[] uiProtocols = new int[]
@@ -31,11 +63,8 @@ namespace CommonLib
         public bool IsConnected => networkManager?.Config.IsConnected ?? false;
 
         // --- 초기화 ---
-        protected override void OnInitialize()
-        {
-            networkManager = new NetworkManager();
-            protocolHandler = new ProtocolHandler();
-            
+        public void OnInitialize()
+        {            
             // 이벤트 등록
             networkManager.ConnectionChanged += OnConnectionChanged;
             networkManager.ErrorOccurred += OnErrorOccurred;
@@ -44,6 +73,8 @@ namespace CommonLib
             RegisterDefaultHandlers();
             
             Debug.Log("[ClientServerHandler] Initialized with NetworkManager.");
+
+            SetServerAllReady(true);
         }
 
         // --- 연결 관리 ---
@@ -62,6 +93,11 @@ namespace CommonLib
                 Debug.LogError($"[ClientServerHandler] Connection failed: {e.Message}");
                 throw;
             }
+        }
+
+        public async Task ConnectAsync()
+        {
+            await ConnectAsync(serverAddress, serverPort);
         }
 
         /// <summary>
@@ -106,16 +142,6 @@ namespace CommonLib
                 Debug.LogError($"[ClientServerHandler] SendAndWaitAsync error: {e.Message}");
                 return null;
             }
-        }
-
-        /// <summary>
-        /// 단방향 프로토콜 전송 (기존 호환성)
-        /// </summary>
-        public async Task SendAsync(byte[] data)
-        {
-            // 기존 인터페이스 호환성을 위한 메서드
-            // 실제로는 Protocol 객체를 사용하는 것을 권장
-            Debug.LogWarning("[ClientServerHandler] SendAsync(byte[]) is deprecated. Use AsyncSend(Protocol, Dictionary) instead.");
         }
 
         // --- 프로토콜 핸들러 관리 ---

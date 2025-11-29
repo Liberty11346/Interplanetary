@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using CommonLib;
 
-public class LoginManager : MonoBehaviour
+public class LoginManager
 {
     // --- 싱글톤 ---
     private static LoginManager _instance;
@@ -20,13 +20,7 @@ public class LoginManager : MonoBehaviour
                 {
                     if (_instance == null)
                     {
-                        _instance = FindObjectOfType<LoginManager>();
-                        if (_instance == null)
-                        {
-                            GameObject go = new GameObject(typeof(LoginManager).Name);
-                            _instance = go.AddComponent<LoginManager>();
-                            DontDestroyOnLoad(go);
-                        }
+                        _instance = new LoginManager();
                     }
                 }
             }
@@ -59,52 +53,25 @@ public class LoginManager : MonoBehaviour
     public bool IsLoggedIn => isLoggedIn;
     public string SessionToken => sessionToken;
 
-    // --- 초기화 및 생명주기 ---
-    private void Awake()
+
+    public async Task Initialize()
     {
-        if (_instance != null && _instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        _instance = this;
-        DontDestroyOnLoad(gameObject);
-
-        try
-        {
+        if (networkClient == null)
             networkClient = ClientServerHandler.Instance;
-            if (networkClient != null)
-            {
-                Debug.Log("[LoginManager] 네트워크 클라이언트 연결됨");
-            }
-            else
-            {
-                Debug.LogError("[LoginManager] 네트워크 클라이언트를 찾을 수 없음");
-            }
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"[LoginManager] 네트워크 클라이언트 초기화 실패: {e.Message}");
-        }
 
+        if (!networkClient.IsConnected)
+            await networkClient.ConnectAsync();
         RegisterNetworkHandlers();
         isInitialized = true;
         EmitStatusMessage("LoginManager 초기화 완료");
+        return;
     }
 
     private void RegisterNetworkHandlers()
     {
         RegisterHandler(ProtocolType.BRODCAST_SYSTEM, HandleSystemBroadcast);
     }
-
-    private void OnDestroy()
-    {
-        if (_instance == this)
-        {
-            Cleanup();
-            _instance = null;
-        }
-    }
+    
 
     private void Cleanup()
     {
@@ -116,9 +83,7 @@ public class LoginManager : MonoBehaviour
 
     public void Reset()
     {
-        currentUser = null;
-        isLoggedIn = false;
-        sessionToken = null;
+        Cleanup();
     }
 
     // --- 로그인 관련 공개 메서드들 ---
@@ -130,7 +95,10 @@ public class LoginManager : MonoBehaviour
     {
         try
         {
-            ValidateNetworkConnection();
+            if (!IsNetworkReady())
+            {
+                await Initialize();
+            }
 
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
@@ -144,7 +112,7 @@ public class LoginManager : MonoBehaviour
 
             NetworkResponse response = await SafeSendAsync(protocol, "로그인");
 
-            if (response.isSuccess)
+            if (response.isSuccess) 
             {
                 sessionToken = response.GetParam<string>("sessionToken");
 
@@ -185,7 +153,10 @@ public class LoginManager : MonoBehaviour
     {
         try
         {
-            ValidateNetworkConnection();
+            if (!IsNetworkReady())
+            {
+                await Initialize();
+            }
 
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
@@ -243,7 +214,10 @@ public class LoginManager : MonoBehaviour
     {
         try
         {
-            ValidateNetworkConnection();
+            if (!IsNetworkReady())
+            {
+                await Initialize();
+            }
 
             var protocol = new Protocol(ProtocolType.REQUEST_REGISTER_AUTO);
 
@@ -287,6 +261,11 @@ public class LoginManager : MonoBehaviour
             {
                 EmitStatusMessage("현재 로그인 상태가 아님");
                 return true;
+            }
+
+            if (!IsNetworkReady())
+            {
+                await Initialize();
             }
 
             ValidateNetworkConnection();

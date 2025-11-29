@@ -7,7 +7,7 @@ using CommonLib;
 /// <summary>
 /// 룸 관리 및 서버 통신 담당 (BaseManager 의존성 제거)
 /// </summary>
-public class RoomManager : MonoBehaviour
+public class RoomManager
 {
     // --- 싱글톤 ---
     private static RoomManager _instance;
@@ -23,13 +23,7 @@ public class RoomManager : MonoBehaviour
                 {
                     if (_instance == null)
                     {
-                        _instance = FindObjectOfType<RoomManager>();
-                        if (_instance == null)
-                        {
-                            GameObject go = new GameObject(typeof(RoomManager).Name);
-                            _instance = go.AddComponent<RoomManager>();
-                            DontDestroyOnLoad(go);
-                        }
+                        _instance = new RoomManager();
                     }
                 }
             }
@@ -60,32 +54,11 @@ public class RoomManager : MonoBehaviour
     public List<RoomInfo> CachedRoomList => new List<RoomInfo>(cachedRoomList);
 
     // --- 초기화 및 생명주기 ---
-    private void Awake()
+    public void Initailize()
     {
-        if (_instance != null && _instance != this)
-        {
-            Destroy(gameObject);
+        networkClient = ClientServerHandler.Instance;
+        if (networkClient == null)
             return;
-        }
-        _instance = this;
-        DontDestroyOnLoad(gameObject);
-
-        try
-        {
-            networkClient = ClientServerHandler.Instance;
-            if (networkClient != null)
-            {
-                Debug.Log("[RoomManager] 네트워크 클라이언트 연결됨");
-            }
-            else
-            {
-                Debug.LogError("[RoomManager] 네트워크 클라이언트를 찾을 수 없음");
-            }
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"[RoomManager] 네트워크 클라이언트 초기화 실패: {e.Message}");
-        }
 
         RegisterNetworkHandlers();
         isInitialized = true;
@@ -102,16 +75,7 @@ public class RoomManager : MonoBehaviour
         RegisterHandler(ProtocolType.ROOM_CLOSED, HandleRoomClosed);
     }
 
-    private void OnDestroy()
-    {
-        if (_instance == this)
-        {
-            Cleanup();
-            _instance = null;
-        }
-    }
-
-    private void Cleanup()
+    public void Cleanup()
     {
         currentRoom = null;
         isInRoom = false;

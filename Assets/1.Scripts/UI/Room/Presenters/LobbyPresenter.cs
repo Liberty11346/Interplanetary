@@ -26,6 +26,8 @@ public class LobbyPresenter
     public LobbyPresenter()
     {
         roomManager = RoomManager.Instance;
+        if(!roomManager.IsInitialized)
+            roomManager.Initailize();
         roomManager.OnRoomJoinSuccess += RoomManager_OnRoomJoinSuccess;
         roomManager.OnRoomListUpdated += RoomManager_OnRoomListUpdated;
 

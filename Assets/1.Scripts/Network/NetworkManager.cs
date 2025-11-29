@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Sockets;
-using System.Threading.Tasks;
-using System.Threading;
-using UnityEngine;
 using System.IO;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices.ComTypes;
+using System.Threading;
+using System.Threading.Tasks;
+using UnityEditor.PackageManager;
+using UnityEngine;
 using static ProtocolHandler;
 
 namespace CommonLib
@@ -33,7 +35,9 @@ namespace CommonLib
         private TcpClient tcpClient;
         private NetworkStream stream;
         private CancellationTokenSource cts;
-        private readonly object sendLock = new object();
+        
+        // 전송 동기화를 위한 세마포어 (Thread-Safety)
+        private readonly SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
 
         // --- 상태 관리 ---
         public NetworkConfig Config { get; private set; } = new NetworkConfig();
@@ -74,6 +78,9 @@ namespace CommonLib
             {
                 Debug.Log($"[NetworkManager] 서버 연결 시도: {ip}:{port}");
 
+                // 기존 연결 정리
+                Cleanup();
+
                 tcpClient = new TcpClient();
                 cts = new CancellationTokenSource();
 
@@ -86,7 +93,9 @@ namespace CommonLib
                 Debug.Log($"<color=green>[NetworkManager] 서버 연결 성공: {ip}:{port}</color>");
 
                 StartTimers();
-                Task.Run(() => ReceiveLoop(cts.Token));
+                
+                // 수신 루프 시작 (Fire-and-forget)
+                _ = Task.Run(() => ReceiveLoop(cts.Token));
 
                 ConnectionChanged?.Invoke(true, "Connected successfully");
             }
@@ -107,10 +116,18 @@ namespace CommonLib
             if (!Config.IsConnected)
                 return;
 
+            Debug.Log("[NetworkManager] 연결 종료 요청됨");
+            
+            // 먼저 연결 상태를 false로 변경하여 추가적인 전송/수신을 막음
             Config.IsConnected = false;
-            Debug.Log("[NetworkManager] 연결 종료 중...");
 
-            cts?.Cancel();
+            // 취소 토큰으로 수신 루프 등 중단 요청
+            try
+            {
+                cts?.Cancel();
+            }
+            catch (ObjectDisposedException) { }
+
             Cleanup();
             ConnectionChanged?.Invoke(false, "Disconnected");
         }
@@ -239,75 +256,82 @@ namespace CommonLib
 
             ResponseAwaiter awaiter = new ResponseAwaiter(new Dictionary<string, object>());
 
-            // 서버 응답과 동기화: protoId는 요청 타입(ProtocolType)로 사용
+            // 서버가 응답 시 protoId에 요청 타입을 포함하여 반환
+            // 클라이언트는 protocol.Type을 키로 사용
             int protocolId = protocol.Type;
-            protocol.AddParam("protoId", protocolId);
 
             lock (pendingResponsesLock)
             {
                 pendingResponses[protocolId] = awaiter;
             }
 
+            // 로그 출력
+            if (IsShowLog(protocol))
+            {
+                Debug.Log($"<color=yellow>[클라 => 서버] Protocol_{protocol.Type}</color>");
+            }
+
+            // 요청 전송
             try
             {
-                // 로그 출력
-                if (IsShowLog(protocol))
-                {
-                    Debug.Log($"<color=yellow>[클라 => 서버] Protocol_{protocol.Type}</color>");
-                }
-
-                // 요청 전송
                 await SendRawData(protocol.Serialize());
-
-                // 응답 대기 (타임아웃 포함)
-                using (var timeoutCts = new CancellationTokenSource(RESPONSE_TIMEOUT_MS))
-                {
-                    try
-                    {
-                        await WaitForAwaiterCompletion(awaiter, timeoutCts.Token);
-                        return awaiter.GetResult();
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        lock (pendingResponsesLock)
-                        {
-                            pendingResponses.Remove(protocolId);
-                        }
-                        throw new TimeoutException($"Protocol {protocolId} response timeout");
-                    }
-                }
             }
             catch (Exception)
             {
+                // 전송 실패 시 대기열에서 제거
                 lock (pendingResponsesLock)
                 {
                     pendingResponses.Remove(protocolId);
                 }
                 throw;
             }
+
+            // 응답 대기 (타임아웃 포함)
+            using (var timeoutCts = new CancellationTokenSource(RESPONSE_TIMEOUT_MS))
+            {
+                try
+                {
+                    await WaitForAwaiterCompletion(awaiter, timeoutCts.Token);
+                    return awaiter.GetResult();
+                }
+                catch (OperationCanceledException)
+                {
+                    lock (pendingResponsesLock)
+                    {
+                        pendingResponses.Remove(protocolId);
+                    }
+                    throw new TimeoutException($"Protocol {protocolId} response timeout");
+                }
+            }
         }
 
         /// <summary>
-        /// 원시 데이터 전송
+        /// 원시 데이터 전송 (Thread-Safe)
         /// </summary>
         private async Task SendRawData(byte[] data)
         {
             if (!Config.IsConnected || stream == null)
                 return;
 
+            // 세마포어를 사용하여 동시 전송 방지
+            await _sendSemaphore.WaitAsync();
             try
             {
-                lock (sendLock)
-                {
-                    stream.Write(data, 0, data.Length);
-                    stream.Flush();
-                }
+                if (!Config.IsConnected || stream == null)
+                    return;
+
+                await stream.WriteAsync(data, 0, data.Length);
+                await stream.FlushAsync();
             }
             catch (Exception e)
             {
                 Debug.LogError($"[NetworkManager] 전송 오류: {e.Message}");
                 Disconnect();
                 throw;
+            }
+            finally
+            {
+                _sendSemaphore.Release();
             }
         }
 
@@ -322,45 +346,86 @@ namespace CommonLib
             {
                 while (Config.IsConnected && !cancellationToken.IsCancellationRequested)
                 {
-                    int headerRead = 0;
-                    while (headerRead < 4 && !cancellationToken.IsCancellationRequested)
-                    {
-                        int bytesRead = await stream.ReadAsync(lengthBuffer, headerRead, 4 - headerRead, cancellationToken);
-                        if (bytesRead == 0)
-                            break;
-                        headerRead += bytesRead;
-                    }
-                    if (headerRead < 4 || cancellationToken.IsCancellationRequested)
+                    if (stream == null || !stream.CanRead)
                         break;
 
-                    UpdateLastActivity();
+                    // 1. 메시지 길이 읽기 (4바이트)
+                    int bytesRead = 0;
+                    try 
+                    {
+                        // ReadAsync가 0을 반환하면 연결이 종료된 것
+                        bytesRead = await stream.ReadAsync(lengthBuffer, 0, 4, cancellationToken);
+                    }
+                    catch (Exception) when (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    if (bytesRead == 0)
+                    {
+                        Debug.Log("[NetworkManager] 서버 연결이 종료되었습니다. (Read 0 bytes)");
+                        break;
+                    }
+
+                    if (bytesRead < 4)
+                    {
+                        // 4바이트 미만으로 읽혔다면 나머지 읽기 (드문 경우)
+                        int remaining = 4 - bytesRead;
+                        while (remaining > 0)
+                        {
+                            int read = await stream.ReadAsync(lengthBuffer, 4 - remaining, remaining, cancellationToken);
+                            if (read == 0) throw new EndOfStreamException("Connection closed while reading length");
+                            remaining -= read;
+                        }
+                    }
 
                     int messageLength = BitConverter.ToInt32(lengthBuffer, 0);
 
-                    if (messageLength <= 0 || messageLength > 1024 * 1024) // 1MB 제한
+                    // 유효성 검사 (최대 10MB로 제한 등)
+                    if (messageLength <= 0 || messageLength > 10 * 1024 * 1024)
                     {
                         Debug.LogError($"[NetworkManager] 잘못된 메시지 길이: {messageLength}");
                         break;
                     }
 
-                    byte[] messageBuffer = new byte[messageLength + 4];
+                    // 2. 전체 메시지 읽기
+                    // 헤더(4바이트)를 포함한 전체 크기가 messageLength라고 가정 (Protocol.cs의 Serialize 참조)
+                    // Serialize에서는 result.Length를 맨 앞에 씀. result.Length는 헤더+데이터 전체 크기.
+                    // 따라서 messageLength 만큼의 버퍼를 할당하고, 앞 4바이트는 이미 읽은 lengthBuffer 내용을 복사하거나
+                    // 혹은 뒤의 데이터만 읽어서 합쳐야 함.
+                    // Protocol.Deserialize는 전체 데이터를 요구함.
+
+                    byte[] messageBuffer = new byte[messageLength];
                     Array.Copy(lengthBuffer, 0, messageBuffer, 0, 4);
 
-                    int totalRead = 0;
-                    while (totalRead < messageLength && !cancellationToken.IsCancellationRequested)
+                    int totalRead = 4; // 이미 4바이트 읽음
+                    while (totalRead < messageLength)
                     {
-                        int bytesRead = await stream.ReadAsync(messageBuffer, 4 + totalRead, messageLength - totalRead, cancellationToken);
-                        if (bytesRead == 0)
-                            return;
-                        totalRead += bytesRead;
+                        int toRead = messageLength - totalRead;
+                        int read = await stream.ReadAsync(messageBuffer, totalRead, toRead, cancellationToken);
+                        if (read == 0)
+                            throw new EndOfStreamException("Connection closed while reading body");
+                        totalRead += read;
                     }
-                    if (totalRead < messageLength)
-                        break;
 
-                    Protocol protocol = Protocol.Deserialize(messageBuffer);
-                    if (protocol != null)
+                    // 3. 역직렬화 및 처리
+                    try
                     {
-                        await HandleIncomingProtocol(protocol);
+                        Protocol protocol = Protocol.Deserialize(messageBuffer);
+                        if (protocol != null)
+                        {
+                            if (IsShowLog(protocol))
+                                Debug.Log($"<color=cyan>[클라 <= 서버] Protocol_{protocol.Type}</color>");
+                            
+                            // 비동기 처리를 기다리지 않고 계속 수신 (순서 보장이 필요하다면 await 해야 함)
+                            // 여기서는 await하여 처리 순서를 보장
+                            await HandleIncomingProtocol(protocol);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"[NetworkManager] 프로토콜 처리 오류: {ex.Message}");
+                        // 프로토콜 하나 실패해도 연결은 유지
                     }
                 }
             }
@@ -370,11 +435,16 @@ namespace CommonLib
             }
             catch (Exception e)
             {
-                Debug.LogError($"[NetworkManager] 수신 루프 오류: {e.Message}");
-                ErrorOccurred?.Invoke($"Receive error: {e.Message}");
+                if (Config.IsConnected) // 의도된 종료가 아닐 때만 에러 로그
+                {
+                    Debug.LogError($"[NetworkManager] 수신 루프 치명적 오류: {e.Message}");
+                    ErrorOccurred?.Invoke($"Receive error: {e.Message}");
+                    Disconnect(); // 에러 발생 시 연결 종료
+                }
             }
             finally
             {
+                Debug.Log("[NetworkManager] 수신 루프 종료");
                 Cleanup();
             }
         }
@@ -384,12 +454,6 @@ namespace CommonLib
         /// </summary>
         private async Task HandleIncomingProtocol(Protocol protocol)
         {
-            // 로그 출력
-            if (IsShowLog(protocol))
-            {
-                Debug.Log($"<color=cyan>[서버 => 클라] Protocol_{protocol.Type}</color>");
-            }
-
             // 응답 매칭 확인
             if (protocol.Type == (int)ProtocolType.RESPONSE)
             {
@@ -433,8 +497,17 @@ namespace CommonLib
         /// </summary>
         private void StartTimers()
         {
+            StopTimers(); // 기존 타이머 제거
             heartbeatTimer = new Timer(SendHeartbeat, null, HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS);
             timeoutCheckTimer = new Timer(CheckTimeout, null, TIMEOUT_CHECK_INTERVAL, TIMEOUT_CHECK_INTERVAL);
+        }
+
+        private void StopTimers()
+        {
+            heartbeatTimer?.Dispose();
+            heartbeatTimer = null;
+            timeoutCheckTimer?.Dispose();
+            timeoutCheckTimer = null;
         }
 
         /// <summary>
@@ -448,11 +521,22 @@ namespace CommonLib
             try
             {
                 var protocol = new Protocol((int)ProtocolType.HEARTBEAT);
-                Task.Run(async () => await SendRawData(protocol.Serialize()));
+                // Fire-and-forget, but catch exceptions
+                Task.Run(async () => 
+                {
+                    try 
+                    {
+                        await SendRawData(protocol.Serialize());
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[NetworkManager] 하트비트 전송 실패: {ex.Message}");
+                    }
+                });
             }
             catch (Exception e)
             {
-                Debug.LogError($"[NetworkManager] 하트비트 전송 오류: {e.Message}");
+                Debug.LogError($"[NetworkManager] 하트비트 생성 오류: {e.Message}");
             }
         }
 
@@ -482,7 +566,8 @@ namespace CommonLib
                 Debug.Log("[NetworkManager] 재접속 시도...");
                 Cleanup();
                 await Task.Delay(1000);
-                Debug.Log("[NetworkManager] 재접속 완료");
+                Debug.Log("[NetworkManager] 재접속 완료 (로직 미구현)");
+                // 실제 재접속 로직은 ClientServerHandler 등 상위 레벨에서 ConnectAsync를 다시 호출해야 함
             }
             finally
             {
@@ -491,30 +576,37 @@ namespace CommonLib
         }
 
         /// <summary>
-        /// 정리 작업
+        /// 정리 작업 (Idempotent)
         /// </summary>
         private void Cleanup()
         {
             // 대기 중인 모든 응답 취소
             lock (pendingResponsesLock)
             {
-                foreach (var awaiter in pendingResponses.Values)
+                if (pendingResponses.Count > 0)
                 {
-                    awaiter.Complete(new NetworkException("Connection closed"));
+                    foreach (var awaiter in pendingResponses.Values)
+                    {
+                        awaiter.Complete(new NetworkException("Connection closed"));
+                    }
+                    pendingResponses.Clear();
                 }
-                pendingResponses.Clear();
             }
 
-            heartbeatTimer?.Dispose();
-            heartbeatTimer = null;
-            timeoutCheckTimer?.Dispose();
-            timeoutCheckTimer = null;
+            StopTimers();
 
-            stream?.Close();
-            tcpClient?.Close();
-            cts?.Dispose();
+            try { stream?.Close(); } catch { }
+            stream = null;
+            
+            try { tcpClient?.Close(); } catch { }
+            tcpClient = null;
+
+            try { cts?.Dispose(); } catch { }
+            cts = null;
 
             Config.IsConnected = false;
+            // _sendSemaphore는 Dispose하지 않음 (재사용 가능성 또는 수명 주기 고려)
+            
             Debug.Log("[NetworkManager] 리소스 정리 완료");
         }
 
