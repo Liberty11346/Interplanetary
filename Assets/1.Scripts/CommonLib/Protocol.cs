@@ -145,7 +145,7 @@ namespace CommonLib
                         // 역직렬화 실패 시 기본값 반환
                     }
                 }
-                
+
                 // 직접 타입인 경우
                 if (value is T directValue)
                     return directValue;
@@ -268,7 +268,7 @@ namespace CommonLib
             {
                 // 정확한 길이만큼만 JSON 파싱
                 string jsonData = Encoding.UTF8.GetString(data, 18, jsonLength);
-                
+
                 try
                 {
                     var parameters = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonData);
@@ -279,7 +279,7 @@ namespace CommonLib
                 }
                 catch (Exception ex)
                 {
-                    UnityEngine.Debug.LogError($"[Protocol] JSON 파싱 오류: {ex.Message}\nJSON: {jsonData}\n크기: messageSize={messageSize}, jsonLength={jsonLength}, dataLength={data.Length}");
+                    Console.WriteLine($"[Protocol] JSON 파싱 오류: {ex.Message}\nJSON: {jsonData}\n크기: messageSize={messageSize}, jsonLength={jsonLength}, dataLength={data.Length}");
                     throw;
                 }
             }

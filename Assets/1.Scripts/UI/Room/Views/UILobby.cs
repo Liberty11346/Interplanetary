@@ -71,6 +71,11 @@ public class UILobby : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (presenter != null)
+        {
+            presenter.Dispose();
+        }
+
         if (roomList != null)
         {
             roomList.OnRoomEnterRequested -= presenter.HandleRoomEnter;

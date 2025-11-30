@@ -4,7 +4,7 @@ using UnityEditor.EditorTools;
 
 public class LoginPresenter
 {
-    private LoginManager loginManager;
+    private UserManager loginManager;
 
     public event Action<string, string> OnResponseAutoRegister;
     public event Action<string> OnLoginSuccess;
@@ -15,7 +15,7 @@ public class LoginPresenter
 
     public LoginPresenter()
     {
-        loginManager = LoginManager.Instance;
+        loginManager = UserManager.Instance;
 
         loginManager.OnLoginSuccess += HandleLoginSuccess;
         loginManager.OnLoginFailure += HandleLoginFailure;
@@ -25,7 +25,7 @@ public class LoginPresenter
         loginManager.OnStatusMessage += HandleStatusMessage;
     }
 
-    ~LoginPresenter()
+    public void Dispose()
     {
         if (loginManager != null)
         {

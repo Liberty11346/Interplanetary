@@ -47,6 +47,8 @@ public class UIWindow_Login : MonoBehaviour
             presenter.OnRegisterSuccess -= HandleRegisterSuccess;
             presenter.OnRegisterFailure -= HandleFailure;
             presenter.OnStatusMessage -= UpdateStatus;
+            
+            presenter.Dispose();
         }
     }
 
@@ -60,8 +62,8 @@ public class UIWindow_Login : MonoBehaviour
     private void HandleLoginSuccess(string message)
     {
         UpdateStatus(message);
-        // TODO: 로비 씬으로 이동
-        // SceneManager.LoadScene("LobbyScene");
+
+        gameObject.SetActive(false);
     }
 
     private void HandleRegisterSuccess(string message)

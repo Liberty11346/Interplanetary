@@ -1,14 +1,9 @@
 using CommonLib;
-using GameClient;
 using UnityEngine;
 using System.Collections.Generic;
-using System.Xml.Linq;
-using Unity.VisualScripting;
-using UnityEditor.PackageManager;
-using UnityEngine.InputSystem;
 using System;
 using System.Linq;
-using UnityEditor.EditorTools;
+using System.Threading.Tasks;
 
 public class LobbyPresenter
 {
@@ -20,14 +15,18 @@ public class LobbyPresenter
     public System.Action<UIRoomList.Data> OnRefreshRoomList;
 
     RoomManager roomManager;
+    UserManager userManager;
+    UserInfo userinfo;
     List<RoomState> stateValues = new List<RoomState>();
     UIWindow_CreateRoom.Data createRoomData = new UIWindow_CreateRoom.Data();
 
     public LobbyPresenter()
     {
         roomManager = RoomManager.Instance;
-        if(!roomManager.IsInitialized)
-            roomManager.Initailize();
+        userManager = UserManager.Instance;
+
+        userManager.OnLoginSuccess += HandleOnLoginSuccess;
+
         roomManager.OnRoomJoinSuccess += RoomManager_OnRoomJoinSuccess;
         roomManager.OnRoomListUpdated += RoomManager_OnRoomListUpdated;
 
@@ -44,7 +43,13 @@ public class LobbyPresenter
             "TWISTED LIBRA"
         };
     }
+
     public UIWindow_CreateRoom.Data UIWindow_CreateRoomData => createRoomData;
+
+    private void HandleOnLoginSuccess(UserInfo userinfo)
+    {
+        roomManager.Initailize(userinfo);
+    }
 
     private void RoomManager_OnRoomListUpdated(List<RoomInfo> obj)
     {
@@ -105,5 +110,19 @@ public class LobbyPresenter
     public void RequestCreateRoom(string roomName, int mapIndex, bool IsPrivate)
     {
         roomManager.RequestCreateRoomAsync(roomName, mapIndex, IsPrivate);
+    }
+
+    public void Dispose()
+    {
+        if (userManager != null)
+        {
+            userManager.OnLoginSuccess -= HandleOnLoginSuccess;
+        }
+
+        if (roomManager != null)
+        {
+            roomManager.OnRoomJoinSuccess -= RoomManager_OnRoomJoinSuccess;
+            roomManager.OnRoomListUpdated -= RoomManager_OnRoomListUpdated;
+        }
     }
 }

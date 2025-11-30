@@ -47,6 +47,7 @@ public class RoomManager
     private RoomInfo? currentRoom = null;
     private List<RoomInfo> cachedRoomList = new List<RoomInfo>();
     private bool isInRoom = false;
+    private UserInfo? currentUser = null;
 
     // --- 속성들 ---
     public RoomInfo? CurrentRoom => currentRoom;
@@ -54,15 +55,23 @@ public class RoomManager
     public List<RoomInfo> CachedRoomList => new List<RoomInfo>(cachedRoomList);
 
     // --- 초기화 및 생명주기 ---
-    public void Initailize()
+    public async Task Initailize(UserInfo user)
     {
+        currentUser = user;
+
         networkClient = ClientServerHandler.Instance;
         if (networkClient == null)
             return;
 
-        RegisterNetworkHandlers();
-        isInitialized = true;
-        EmitStatusMessage("RoomManager 초기화 완료");
+        if (!isInitialized)
+        {
+            RegisterNetworkHandlers();
+            isInitialized = true;
+            EmitStatusMessage("RoomManager 초기화 완료");
+        }
+
+        // 로그인 성공했으니 로비 입장 요청 전송
+        await RequestJoinLobbyAsync();
     }
 
     private void RegisterNetworkHandlers()

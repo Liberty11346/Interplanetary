@@ -4,13 +4,13 @@ using System.Threading.Tasks;
 using UnityEngine;
 using CommonLib;
 
-public class LoginManager
+public class UserManager
 {
     // --- 싱글톤 ---
-    private static LoginManager _instance;
+    private static UserManager _instance;
     private static readonly object _lock = new object();
 
-    public static LoginManager Instance
+    public static UserManager Instance
     {
         get
         {
@@ -20,7 +20,7 @@ public class LoginManager
                 {
                     if (_instance == null)
                     {
-                        _instance = new LoginManager();
+                        _instance = new UserManager();
                     }
                 }
             }
@@ -36,12 +36,12 @@ public class LoginManager
     public event Action<string> OnStatusMessage;
 
     // --- 로그인 관련 이벤트들 ---
-    public event Action<UserInfo> OnLoginSuccess;
-    public event Action<string> OnLoginFailure;
-    public event Action<string, string> OnAutoRegisterSuccess; // username, password
-    public event Action<string> OnRegisterSuccess;
-    public event Action<string> OnRegisterFailure;
-    public event Action OnLogout;
+    public System.Action<UserInfo> OnLoginSuccess;
+    public System.Action<string> OnLoginFailure;
+    public System.Action<string, string> OnAutoRegisterSuccess; // username, password
+    public System.Action<string> OnRegisterSuccess;
+    public System.Action<string> OnRegisterFailure;
+    public System.Action OnLogout;
 
     // --- 현재 상태 ---
     private UserInfo? currentUser = null;

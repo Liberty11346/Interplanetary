@@ -8,7 +8,6 @@ namespace CommonLib
     public static class ProtocolType
     {
         // 클라이언트 -> 서버 (서버 공통 타입과 정확히 일치)
-        // 클라이언트 -> 서버
         public const int REQUEST_LOGIN = 10000;                 // 로그인 요청
         public const int REQUEST_LOGOUT = 10001;                //로그아웃 요청
         public const int CHAT_MESSAGE = 10002;                  //메세지 전송

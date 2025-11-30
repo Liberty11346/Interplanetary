@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
-using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor.PackageManager;
@@ -35,7 +33,7 @@ namespace CommonLib
         private TcpClient tcpClient;
         private NetworkStream stream;
         private CancellationTokenSource cts;
-        
+
         // 전송 동기화를 위한 세마포어 (Thread-Safety)
         private readonly SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
 
@@ -47,8 +45,6 @@ namespace CommonLib
         private readonly object handlersLock = new object();
 
         // --- Request-Response 패턴 ---
-        private int nextProtocolId = 1;
-        private readonly object protocolIdLock = new object();
         private Dictionary<int, ResponseAwaiter> pendingResponses = new Dictionary<int, ResponseAwaiter>();
         private readonly object pendingResponsesLock = new object();
 
@@ -57,8 +53,8 @@ namespace CommonLib
         private Timer timeoutCheckTimer;
 
         // --- 상수 ---
-        private const int HEARTBEAT_INTERVAL_MS = 10000; // 10초
-        private const int TIMEOUT_SECONDS = 30;          // 30초
+        private const int HEARTBEAT_INTERVAL_MS = 5000;  // 5초 (10초에서 변경)
+        private const int TIMEOUT_SECONDS = 60;          // 60초
         private const int TIMEOUT_CHECK_INTERVAL = 5000; // 5초
         private const int RESPONSE_TIMEOUT_MS = 30000;   // 30초
 
@@ -76,7 +72,7 @@ namespace CommonLib
 
             try
             {
-                Debug.Log($"[NetworkManager] 서버 연결 시도: {ip}:{port}");
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 서버 연결 시도: {ip}:{port}");
 
                 // 기존 연결 정리
                 Cleanup();
@@ -84,16 +80,22 @@ namespace CommonLib
                 tcpClient = new TcpClient();
                 cts = new CancellationTokenSource();
 
+                // Nagle 알고리즘 비활성화 - 즉시 전송!
+                tcpClient.NoDelay = true;
+
+                //  송신 버퍼 크기 최소화 (선택사항)
+                tcpClient.SendBufferSize = 1024;
                 await tcpClient.ConnectAsync(ip, port);
 
                 stream = tcpClient.GetStream();
                 Config.IsConnected = true;
+                Config.IsServerAllReady = true; // ✅ 연결 즉시 서버 준비 완료로 설정
                 UpdateLastActivity();
 
-                Debug.Log($"<color=green>[NetworkManager] 서버 연결 성공: {ip}:{port}</color>");
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=green>[NetworkManager] 서버 연결 성공: {ip}:{port}</color>");
 
                 StartTimers();
-                
+
                 // 수신 루프 시작 (Fire-and-forget)
                 _ = Task.Run(() => ReceiveLoop(cts.Token));
 
@@ -101,7 +103,7 @@ namespace CommonLib
             }
             catch (Exception e)
             {
-                Debug.LogError($"[NetworkManager] 연결 오류: {e.Message}");
+                Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 연결 오류: {e.Message}");
                 Cleanup();
                 ConnectionChanged?.Invoke(false, e.Message);
                 throw;
@@ -116,8 +118,8 @@ namespace CommonLib
             if (!Config.IsConnected)
                 return;
 
-            Debug.Log("[NetworkManager] 연결 종료 요청됨");
-            
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 연결 종료 요청됨");
+
             // 먼저 연결 상태를 false로 변경하여 추가적인 전송/수신을 막음
             Config.IsConnected = false;
 
@@ -209,12 +211,16 @@ namespace CommonLib
         /// </summary>
         private async Task EnsureConnection(Protocol protocol)
         {
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [EnsureConnection] 시작 - Protocol: {protocol.Type}");
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [EnsureConnection] IsReconnecting: {Config.IsReconnecting}");
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [EnsureConnection] IsConnected: {Config.IsConnected}");
+
             // 재접속 중
             if (Config.IsReconnecting)
             {
                 if (!IsReconnectingSend(protocol))
                 {
-                    Debug.Log($"[NetworkManager] 재접속 중에 차단된 프로토콜: {protocol.Type}");
+                    Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 재접속 중에 차단된 프로토콜: {protocol.Type}");
                     throw new NetworkException("Reconnecting in progress");
                 }
                 await WaitWhileReconnecting();
@@ -232,6 +238,8 @@ namespace CommonLib
                     throw new NetworkException("Connection lost and cannot reconnect");
                 }
             }
+
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [EnsureConnection] 완료");
         }
 
         /// <summary>
@@ -239,46 +247,56 @@ namespace CommonLib
         /// </summary>
         private async Task WaitForServerReady(Protocol protocol)
         {
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [WaitForServerReady] 시작");
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [WaitForServerReady] IsEnterProtocol: {IsEnterProtocol(protocol)}");
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [WaitForServerReady] IsServerAllReady: {Config.IsServerAllReady}");
+
             if (!IsEnterProtocol(protocol))
             {
                 if (!Config.IsServerAllReady)
+                {
+                    Debug.LogWarning($"[{DateTime.Now:HH:mm:ss.fff}] ⚠️ 서버 준비 대기 시작!");
                     await WaitUntilServerReady();
+                    Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 서버 준비 완료");
+                }
             }
+
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [WaitForServerReady] 완료");
         }
 
         /// <summary>
-        /// 실제 요청 전송 및 응답 대기 (통합 구조)
+        /// 실제 요청 전송 및 응답 대기 (TaskCompletionSource 사용)
         /// </summary>
         private async Task<NetworkResponse> SendRequest(Protocol protocol)
         {
-            if (!Config.IsConnected)
-                throw new NetworkException("Not connected to server");
+            var sw = System.Diagnostics.Stopwatch.StartNew();
 
             ResponseAwaiter awaiter = new ResponseAwaiter(new Dictionary<string, object>());
-
-            // 서버가 응답 시 protoId에 요청 타입을 포함하여 반환
-            // 클라이언트는 protocol.Type을 키로 사용
             int protocolId = protocol.Type;
+
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] ━━━ [SendRequest 시작] ━━━");
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] Protocol Type: {protocolId}");
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] Time: 0ms");
 
             lock (pendingResponsesLock)
             {
                 pendingResponses[protocolId] = awaiter;
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 대기자 등록 완료. 현재 대기 중: [{string.Join(", ", pendingResponses.Keys)}]");
             }
 
-            // 로그 출력
             if (IsShowLog(protocol))
             {
-                Debug.Log($"<color=yellow>[클라 => 서버] Protocol_{protocol.Type}</color>");
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=yellow>[클라 => 서버] Protocol_{protocol.Type} ({sw.ElapsedMilliseconds}ms)</color>");
             }
 
             // 요청 전송
             try
             {
                 await SendRawData(protocol.Serialize());
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 전송 완료: {sw.ElapsedMilliseconds}ms");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // 전송 실패 시 대기열에서 제거
                 lock (pendingResponsesLock)
                 {
                     pendingResponses.Remove(protocolId);
@@ -286,22 +304,42 @@ namespace CommonLib
                 throw;
             }
 
-            // 응답 대기 (타임아웃 포함)
-            using (var timeoutCts = new CancellationTokenSource(RESPONSE_TIMEOUT_MS))
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 응답 대기 시작... ({sw.ElapsedMilliseconds}ms)");
+
+            // ✅ TaskCompletionSource 직접 await - Unity 프레임 독립적!
+            try
             {
-                try
+                using (var timeoutCts = new CancellationTokenSource(RESPONSE_TIMEOUT_MS))
                 {
-                    await WaitForAwaiterCompletion(awaiter, timeoutCts.Token);
-                    return awaiter.GetResult();
-                }
-                catch (OperationCanceledException)
-                {
-                    lock (pendingResponsesLock)
+                    var completedTask = await Task.WhenAny(
+                        awaiter.Task,
+                        Task.Delay(RESPONSE_TIMEOUT_MS, timeoutCts.Token)
+                    );
+
+                    if (completedTask == awaiter.Task)
                     {
-                        pendingResponses.Remove(protocolId);
+                        timeoutCts.Cancel();
+                        Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=green>✅ 응답 수신 성공! ({sw.ElapsedMilliseconds}ms)</color>");
+                        return await awaiter.Task;
                     }
-                    throw new TimeoutException($"Protocol {protocolId} response timeout");
+                    else
+                    {
+                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] <color=red>❌ 타임아웃! ({sw.ElapsedMilliseconds}ms)</color>");
+                        lock (pendingResponsesLock)
+                        {
+                            pendingResponses.Remove(protocolId);
+                        }
+                        throw new TimeoutException($"Protocol {protocolId} response timeout after {RESPONSE_TIMEOUT_MS}ms");
+                    }
                 }
+            }
+            catch (Exception)
+            {
+                lock (pendingResponsesLock)
+                {
+                    pendingResponses.Remove(protocolId);
+                }
+                throw;
             }
         }
 
@@ -313,25 +351,33 @@ namespace CommonLib
             if (!Config.IsConnected || stream == null)
                 return;
 
-            // 세마포어를 사용하여 동시 전송 방지
-            await _sendSemaphore.WaitAsync();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] 전송 시작 - Size: {data.Length} bytes");
+
+            await _sendSemaphore.WaitAsync().ConfigureAwait(false);
             try
             {
                 if (!Config.IsConnected || stream == null)
                     return;
 
-                await stream.WriteAsync(data, 0, data.Length);
-                await stream.FlushAsync();
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] 세마포어 획득: {sw.ElapsedMilliseconds}ms");
+
+                await stream.WriteAsync(data, 0, data.Length).ConfigureAwait(false);
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] WriteAsync 완료: {sw.ElapsedMilliseconds}ms");
+
+                await stream.FlushAsync().ConfigureAwait(false);
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] FlushAsync 완료: {sw.ElapsedMilliseconds}ms");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[NetworkManager] 전송 오류: {e.Message}");
+                Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 전송 오류: {e.Message}");
                 Disconnect();
                 throw;
             }
             finally
             {
                 _sendSemaphore.Release();
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] 세마포어 해제: {sw.ElapsedMilliseconds}ms");
             }
         }
 
@@ -340,6 +386,7 @@ namespace CommonLib
         /// </summary>
         private async Task ReceiveLoop(CancellationToken cancellationToken)
         {
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [ReceiveLoop] 시작!");
             byte[] lengthBuffer = new byte[4];
 
             try
@@ -351,9 +398,8 @@ namespace CommonLib
 
                     // 1. 메시지 길이 읽기 (4바이트)
                     int bytesRead = 0;
-                    try 
+                    try
                     {
-                        // ReadAsync가 0을 반환하면 연결이 종료된 것
                         bytesRead = await stream.ReadAsync(lengthBuffer, 0, 4, cancellationToken);
                     }
                     catch (Exception) when (cancellationToken.IsCancellationRequested)
@@ -363,13 +409,12 @@ namespace CommonLib
 
                     if (bytesRead == 0)
                     {
-                        Debug.Log("[NetworkManager] 서버 연결이 종료되었습니다. (Read 0 bytes)");
+                        Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 서버 연결이 종료되었습니다. (Read 0 bytes)");
                         break;
                     }
 
                     if (bytesRead < 4)
                     {
-                        // 4바이트 미만으로 읽혔다면 나머지 읽기 (드문 경우)
                         int remaining = 4 - bytesRead;
                         while (remaining > 0)
                         {
@@ -381,24 +426,18 @@ namespace CommonLib
 
                     int messageLength = BitConverter.ToInt32(lengthBuffer, 0);
 
-                    // 유효성 검사 (최대 10MB로 제한 등)
-                    if (messageLength <= 0 || messageLength > 10 * 1024 * 1024)
+                    // 유효성 검사
+                    if (messageLength <= 0 || messageLength > 1024 * 1024)
                     {
-                        Debug.LogError($"[NetworkManager] 잘못된 메시지 길이: {messageLength}");
+                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 잘못된 메시지 길이: {messageLength}");
                         break;
                     }
 
                     // 2. 전체 메시지 읽기
-                    // 헤더(4바이트)를 포함한 전체 크기가 messageLength라고 가정 (Protocol.cs의 Serialize 참조)
-                    // Serialize에서는 result.Length를 맨 앞에 씀. result.Length는 헤더+데이터 전체 크기.
-                    // 따라서 messageLength 만큼의 버퍼를 할당하고, 앞 4바이트는 이미 읽은 lengthBuffer 내용을 복사하거나
-                    // 혹은 뒤의 데이터만 읽어서 합쳐야 함.
-                    // Protocol.Deserialize는 전체 데이터를 요구함.
-
                     byte[] messageBuffer = new byte[messageLength];
                     Array.Copy(lengthBuffer, 0, messageBuffer, 0, 4);
 
-                    int totalRead = 4; // 이미 4바이트 읽음
+                    int totalRead = 4;
                     while (totalRead < messageLength)
                     {
                         int toRead = messageLength - totalRead;
@@ -415,36 +454,33 @@ namespace CommonLib
                         if (protocol != null)
                         {
                             if (IsShowLog(protocol))
-                                Debug.Log($"<color=cyan>[클라 <= 서버] Protocol_{protocol.Type}</color>");
-                            
-                            // 비동기 처리를 기다리지 않고 계속 수신 (순서 보장이 필요하다면 await 해야 함)
-                            // 여기서는 await하여 처리 순서를 보장
+                                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=cyan>[클라 <= 서버] Protocol_{protocol.Type}</color>");
+
                             await HandleIncomingProtocol(protocol);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Debug.LogError($"[NetworkManager] 프로토콜 처리 오류: {ex.Message}");
-                        // 프로토콜 하나 실패해도 연결은 유지
+                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 프로토콜 처리 오류: {ex.Message}");
                     }
                 }
             }
             catch (OperationCanceledException)
             {
-                Debug.Log("[NetworkManager] 수신 루프 취소됨");
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 수신 루프 취소됨");
             }
             catch (Exception e)
             {
-                if (Config.IsConnected) // 의도된 종료가 아닐 때만 에러 로그
+                if (Config.IsConnected)
                 {
-                    Debug.LogError($"[NetworkManager] 수신 루프 치명적 오류: {e.Message}");
+                    Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 수신 루프 치명적 오류: {e.Message}");
                     ErrorOccurred?.Invoke($"Receive error: {e.Message}");
-                    Disconnect(); // 에러 발생 시 연결 종료
+                    Disconnect();
                 }
             }
             finally
             {
-                Debug.Log("[NetworkManager] 수신 루프 종료");
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 수신 루프 종료");
                 Cleanup();
             }
         }
@@ -454,20 +490,49 @@ namespace CommonLib
         /// </summary>
         private async Task HandleIncomingProtocol(Protocol protocol)
         {
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] ━━━ [HandleIncoming 시작] ━━━");
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] Protocol Type: {protocol.Type}");
+
+            // 파라미터 전체 출력
+            var parameters = protocol.GetParams();
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] Parameters: {string.Join(", ", parameters.Select(kv => $"{kv.Key}={kv.Value}"))}");
+
             // 응답 매칭 확인
             if (protocol.Type == (int)ProtocolType.RESPONSE)
             {
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=cyan>Response 감지!</color>");
+
+                // protoId 확인
+                if (!protocol.HasParam("protoId"))
+                {
+                    Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] <color=red>⚠️ Response에 protoId 없음!</color>");
+                    Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] 사용 가능한 키: {string.Join(", ", parameters.Keys)}");
+                    return;
+                }
+
                 int protocolId = protocol.GetParam<int>("protoId");
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] protoId: {protocolId}");
+
                 lock (pendingResponsesLock)
                 {
+                    Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 현재 대기 중인 요청: [{string.Join(", ", pendingResponses.Keys)}]");
+
                     if (pendingResponses.TryGetValue(protocolId, out var awaiter))
                     {
+                        Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=green>✅ 매칭 성공! protocolId: {protocolId}</color>");
                         pendingResponses.Remove(protocolId);
 
-                        // Protocol 객체를 직접 사용하여 NetworkResponse 생성
                         var response = new NetworkResponse(protocol, awaiter.sendParam);
                         awaiter.Complete(response, null);
+
+                        Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=green>awaiter.Complete() 호출 완료</color>");
                         return;
+                    }
+                    else
+                    {
+                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] <color=red>⚠️ 매칭 실패!</color>");
+                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] 찾는 protocolId: {protocolId}");
+                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] 대기 중인 요청: [{string.Join(", ", pendingResponses.Keys)}]");
                     }
                 }
             }
@@ -481,14 +546,19 @@ namespace CommonLib
 
             if (handler != null)
             {
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 핸들러 실행: Protocol {protocol.Type}");
                 try
                 {
                     await handler(protocol);
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError($"[NetworkManager] 프로토콜 핸들러 오류: {e.Message}");
+                    Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 프로토콜 핸들러 오류: {e.Message}");
                 }
+            }
+            else
+            {
+                Debug.LogWarning($"[{DateTime.Now:HH:mm:ss.fff}] <color=yellow>⚠️ 등록된 핸들러 없음: Protocol {protocol.Type}</color>");
             }
         }
 
@@ -497,7 +567,7 @@ namespace CommonLib
         /// </summary>
         private void StartTimers()
         {
-            StopTimers(); // 기존 타이머 제거
+            StopTimers();
             heartbeatTimer = new Timer(SendHeartbeat, null, HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS);
             timeoutCheckTimer = new Timer(CheckTimeout, null, TIMEOUT_CHECK_INTERVAL, TIMEOUT_CHECK_INTERVAL);
         }
@@ -521,22 +591,21 @@ namespace CommonLib
             try
             {
                 var protocol = new Protocol((int)ProtocolType.HEARTBEAT);
-                // Fire-and-forget, but catch exceptions
-                Task.Run(async () => 
+                Task.Run(async () =>
                 {
-                    try 
+                    try
                     {
                         await SendRawData(protocol.Serialize());
                     }
                     catch (Exception ex)
                     {
-                        Debug.LogWarning($"[NetworkManager] 하트비트 전송 실패: {ex.Message}");
+                        Debug.LogWarning($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 하트비트 전송 실패: {ex.Message}");
                     }
                 });
             }
             catch (Exception e)
             {
-                Debug.LogError($"[NetworkManager] 하트비트 생성 오류: {e.Message}");
+                Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 하트비트 생성 오류: {e.Message}");
             }
         }
 
@@ -550,7 +619,7 @@ namespace CommonLib
 
             if ((DateTime.UtcNow - Config.LastActivityTime).TotalSeconds > TIMEOUT_SECONDS)
             {
-                Debug.LogWarning("[NetworkManager] 타임아웃 감지. 연결 종료.");
+                Debug.LogWarning($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 타임아웃 감지. 연결 종료.");
                 Disconnect();
             }
         }
@@ -563,11 +632,10 @@ namespace CommonLib
             Config.IsReconnecting = true;
             try
             {
-                Debug.Log("[NetworkManager] 재접속 시도...");
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 재접속 시도...");
                 Cleanup();
                 await Task.Delay(1000);
-                Debug.Log("[NetworkManager] 재접속 완료 (로직 미구현)");
-                // 실제 재접속 로직은 ClientServerHandler 등 상위 레벨에서 ConnectAsync를 다시 호출해야 함
+                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 재접속 완료 (로직 미구현)");
             }
             finally
             {
@@ -597,7 +665,7 @@ namespace CommonLib
 
             try { stream?.Close(); } catch { }
             stream = null;
-            
+
             try { tcpClient?.Close(); } catch { }
             tcpClient = null;
 
@@ -605,20 +673,11 @@ namespace CommonLib
             cts = null;
 
             Config.IsConnected = false;
-            // _sendSemaphore는 Dispose하지 않음 (재사용 가능성 또는 수명 주기 고려)
-            
-            Debug.Log("[NetworkManager] 리소스 정리 완료");
+
+            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 리소스 정리 완료");
         }
 
         // --- 유틸리티 메서드들 ---
-
-        private int GetNextProtocolId()
-        {
-            lock (protocolIdLock)
-            {
-                return nextProtocolId++;
-            }
-        }
 
         private bool CanReconnect()
         {
@@ -635,17 +694,22 @@ namespace CommonLib
 
         private async Task WaitUntilServerReady()
         {
+            int waitCount = 0;
             while (!Config.IsServerAllReady)
             {
                 await Task.Delay(100);
-            }
-        }
+                waitCount++;
 
-        private async Task WaitForAwaiterCompletion(ResponseAwaiter awaiter, CancellationToken cancellationToken)
-        {
-            while (!awaiter.IsCompleted && !cancellationToken.IsCancellationRequested)
-            {
-                await Task.Delay(10, cancellationToken);
+                if (waitCount % 10 == 0) // 1초마다
+                {
+                    Debug.LogWarning($"[{DateTime.Now:HH:mm:ss.fff}] 서버 준비 대기 중... ({waitCount * 100}ms)");
+                }
+
+                if (waitCount > 300) // 30초 타임아웃
+                {
+                    Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] 서버 준비 대기 타임아웃!");
+                    throw new TimeoutException("Server ready timeout");
+                }
             }
         }
 
@@ -661,24 +725,17 @@ namespace CommonLib
 
         private bool IsEnterProtocol(Protocol protocol)
         {
-            return protocol.Type == 10001 || protocol.Type == 10002;
-        }
-
-        private Dictionary<string, object> ConvertProtocolToDict(Protocol protocol)
-        {
-            // Protocol 객체를 Dictionary로 변환
-            return new Dictionary<string, object>();
+            // ✅ 로그인(10000)도 EnterProtocol로 인정
+            return protocol.Type == 10000 || protocol.Type == 10001 || protocol.Type == 10002;
         }
     }
 
     /// <summary>
-    /// 응답 대기자
+    /// 응답 대기자 (TaskCompletionSource 사용)
     /// </summary>
     public class ResponseAwaiter
     {
-        public bool IsCompleted { get; private set; }
-        private NetworkResponse result;
-        private Exception exception;
+        private TaskCompletionSource<NetworkResponse> tcs = new TaskCompletionSource<NetworkResponse>();
         public readonly Dictionary<string, object> sendParam;
 
         public ResponseAwaiter(Dictionary<string, object> sendParam)
@@ -686,33 +743,27 @@ namespace CommonLib
             this.sendParam = sendParam ?? new Dictionary<string, object>();
         }
 
-        public NetworkResponse GetResult()
-        {
-            if (!IsCompleted)
-            {
-                Debug.LogError("방어코드: 완료되지 않은 작업");
-                return null;
-            }
-            if (exception != null)
-                throw exception;
-            return result;
-        }
+        public Task<NetworkResponse> Task => tcs.Task;
 
         public void Complete(NetworkResponse result, Exception exception)
         {
-            if (IsCompleted)
+            if (exception != null)
             {
-                Debug.LogError("방어코드: 이미 완료된 작업");
-                return;
+                tcs.TrySetException(exception);
             }
-            IsCompleted = true;
-            this.exception = exception;
-            this.result = result;
+            else if (result != null)
+            {
+                tcs.TrySetResult(result);
+            }
+            else
+            {
+                tcs.TrySetException(new InvalidOperationException("Response is null"));
+            }
         }
 
         public void Complete(Exception exception)
         {
-            Complete(null, exception);
+            tcs.TrySetException(exception ?? new Exception("Unknown error"));
         }
     }
 
