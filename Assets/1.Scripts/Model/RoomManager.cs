@@ -120,24 +120,8 @@ public class RoomManager
                 // 응답 파라미터: roomCount, page, roomList
                 int roomCount = response.GetParam<int>("roomCount");
                 int responsePage = response.GetParam<int>("page");
-                var roomListData = response.GetParam<object[]>("roomList");
-
-                cachedRoomList.Clear();
-
-                if (roomListData != null)
-                {
-                    foreach (var roomData in roomListData)
-                    {
-                        if (roomData is Dictionary<string, object> roomDict)
-                        {
-                            var roomInfo = ParseRoomInfo(roomDict);
-                            cachedRoomList.Add(roomInfo);
-                        }
-                    }
-                }
-
-                EmitStatusMessage($"총 {roomCount}개 중 {cachedRoomList.Count}개의 룸 로드됨 (Page: {responsePage})");
-                OnRoomListUpdated?.Invoke(cachedRoomList);
+                var roomListData = response.GetParam<RoomInfo[]>("roomList");
+                UpdateCashedRooms(roomListData);
                 return true;
             }
 
@@ -166,23 +150,8 @@ public class RoomManager
             if (response.isSuccess)
             {
                 // 응답 파라미터: roomList
-                var roomListData = response.GetParam<object[]>("roomList");
-                cachedRoomList.Clear();
-
-                if (roomListData != null)
-                {
-                    foreach (var roomData in roomListData)
-                    {
-                        if (roomData is Dictionary<string, object> roomDict)
-                        {
-                            var roomInfo = ParseRoomInfo(roomDict);
-                            cachedRoomList.Add(roomInfo);
-                        }
-                    }
-                }
-
-                EmitStatusMessage($"총 {cachedRoomList.Count}개의 룸 갱신됨");
-                OnRoomListUpdated?.Invoke(cachedRoomList);
+                var roomListData = response.GetParam<RoomInfo[]>("roomList");
+                UpdateCashedRooms(roomListData);
                 return true;
             }
 
@@ -216,9 +185,10 @@ public class RoomManager
                 // 응답 파라미터: roomId, slot
                 string roomId = response.GetParam<string>("roomId");
                 int slot = response.GetParam<int>("slot");
-                RoomInfo roomInfo = response.GetStruct<RoomInfo>("roomInfo");
+                RoomInfo[] rooms = response.GetParam<RoomInfo[]>("roomList");
 
-                OnRoomJoinSuccess?.Invoke(roomInfo);
+                UpdateCashedRooms(rooms);
+                OnRoomJoinSuccess?.Invoke(cachedRoomList.Find(x => x.RoomId == roomId));
                 EmitStatusMessage($"생성된 룸 ID: {roomId}, 슬롯: {slot}");
                 return true;
             }
@@ -238,6 +208,20 @@ public class RoomManager
             OnRoomJoinFailure?.Invoke($"룸 생성 오류: {e.Message}");
             return false;
         }
+    }
+
+    private bool UpdateCashedRooms(RoomInfo[] rooms)
+    {
+        cachedRoomList.Clear();
+        foreach (RoomInfo room in rooms)
+        {
+            cachedRoomList.Add(room);
+        }
+
+        EmitStatusMessage($"총 {cachedRoomList.Count}개의 룸 갱신됨");
+        OnRoomListUpdated?.Invoke(cachedRoomList);
+
+        return true;
     }
 
     /// <summary>

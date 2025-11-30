@@ -58,7 +58,7 @@ public class UILobby : MonoBehaviour
 
     private void RefreshRoomList(UIRoomList.Data roomData)
     {
-        if (roomData != null)
+        if (roomData == null)
         {
             Debug.LogError("roomDataNull!!!");
             return;

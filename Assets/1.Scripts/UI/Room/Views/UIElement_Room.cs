@@ -61,5 +61,6 @@ public class UIElement_Room : MonoBehaviour
 
         roomId = data.roomId;
         roomState = data.roomState;
+        gameObject.SetActive(true);
     }
 }
