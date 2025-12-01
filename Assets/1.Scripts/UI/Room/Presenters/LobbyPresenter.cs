@@ -29,6 +29,7 @@ public class LobbyPresenter
 
         roomManager.OnRoomJoinSuccess += RoomManager_OnRoomJoinSuccess;
         roomManager.OnRoomListUpdated += RoomManager_OnRoomListUpdated;
+        roomManager.OnRoomCreateSuccess += RoomManager_OnRoomCreateSuccess;
 
         foreach (var item in Enum.GetValues(typeof(RoomState)).Cast<RoomState>().ToList())
         {
@@ -42,6 +43,11 @@ public class LobbyPresenter
             "RUERY SPACE",
             "TWISTED LIBRA"
         };
+    }
+
+    private void RoomManager_OnRoomCreateSuccess(string roomid, int slot)
+    {
+        roomManager.RequestJoinRoomAsync(roomid, slot);
     }
 
     public UIWindow_CreateRoom.Data UIWindow_CreateRoomData => createRoomData;
@@ -125,6 +131,7 @@ public class LobbyPresenter
         {
             roomManager.OnRoomJoinSuccess -= RoomManager_OnRoomJoinSuccess;
             roomManager.OnRoomListUpdated -= RoomManager_OnRoomListUpdated;
+            roomManager.OnRoomCreateSuccess -= RoomManager_OnRoomCreateSuccess;
         }
     }
 }

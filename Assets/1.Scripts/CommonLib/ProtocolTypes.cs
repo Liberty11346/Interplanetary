@@ -18,13 +18,14 @@ namespace CommonLib
         public const int CHAT_CHANNEL_REFRESH = 10101;
         public const int CHAT_CHANNEL_LEFT = 10102;
 
-        public const int REQUEST_JOIN_LOBBY = 10010;            //로비 접속 요청
+        public const int REQUEST_JOIN_LOBBY = 10010;                //로비 접속 요청
 
-        public const int REFRESH_LOBBY = 10011;                 //로비 새로고침 요청
-        public const int REQUEST_CREATE_ROOM = 10012;           //방 생성 요청
-        public const int REQUEST_JOIN_ROOM = 10013;             //방 입장 요청
-        public const int REQUEST_READY = 10014;                 // 게임 레디
-        public const int REQUEST_LEFT_ROOM = 10015;             // 방 퇴장 요청
+        public const int REFRESH_LOBBY = 10011;                     //로비 새로고침 요청
+        public const int REQUEST_CREATE_ROOM = 10012;               //방 생성 요청
+        public const int REQUEST_JOIN_ROOM = 10013;                 //방 입장 요청
+        public const int REQUEST_READY = 10014;                     // 게임 레디
+        public const int REQUEST_LEFT_ROOM = 10015;                 // 방 퇴장 요청
+        public const int REQUEST_REFRESH_JOINED_ROOM_INFO = 10016;  // 입장한 방 정보 갱신 요청
 
         public const int REQUEST_GAME_CL_READY = 10200;
 
@@ -46,6 +47,48 @@ namespace CommonLib
         public const int GAME_ENDED = 20026;                     // 게임 종료 알림
 
         public const int SUBMIT_COMMAND = 30100;
+
+        /// <summary>
+        /// 프로토콜 타입 숫자를 문자열로 변환
+        /// </summary>
+        public static string GetName(int protocolType)
+        {
+            return protocolType switch
+            {
+                REQUEST_LOGIN => "REQUEST_LOGIN",
+                REQUEST_LOGOUT => "REQUEST_LOGOUT",
+                CHAT_MESSAGE => "CHAT_MESSAGE",
+                HEARTBEAT => "HEARTBEAT",
+                REQUEST_TABLEDATA => "REQUEST_TABLEDATA",
+                REQUEST_REGISTER => "REQUEST_REGISTER",
+                REQUEST_REGISTER_AUTO => "REQUEST_REGISTER_AUTO",
+                CHAT_CHANNEL_JOIN => "CHAT_CHANNEL_JOIN",
+                CHAT_CHANNEL_REFRESH => "CHAT_CHANNEL_REFRESH",
+                CHAT_CHANNEL_LEFT => "CHAT_CHANNEL_LEFT",
+                REQUEST_JOIN_LOBBY => "REQUEST_JOIN_LOBBY",
+                REFRESH_LOBBY => "REFRESH_LOBBY",
+                REQUEST_CREATE_ROOM => "REQUEST_CREATE_ROOM",
+                REQUEST_JOIN_ROOM => "REQUEST_JOIN_ROOM",
+                REQUEST_READY => "REQUEST_READY",
+                REQUEST_LEFT_ROOM => "REQUEST_LEFT_ROOM",
+                REQUEST_REFRESH_JOINED_ROOM_INFO => "REQUEST_REFRESH_JOINED_ROOM_INFO",
+                REQUEST_GAME_CL_READY => "REQUEST_GAME_CL_READY",
+                RESPONSE => "RESPONSE",
+                BRODCAST_SYSTEM => "BRODCAST_SYSTEM",
+                BRODCAST_CHAT_MESSAGE => "BRODCAST_CHAT_MESSAGE",
+                HEARTBEAT_ACK => "HEARTBEAT_ACK",
+                USER_JOINED => "USER_JOINED",
+                USER_LEFT => "USER_LEFT",
+                ROOM_INFO_CHANGED => "ROOM_INFO_CHANGED",
+                ROOM_CLOSED => "ROOM_CLOSED",
+                GAME_SET => "GAME_SET",
+                GAME_STARTED => "GAME_STARTED",
+                GAME_STATE => "GAME_STATE",
+                GAME_ENDED => "GAME_ENDED",
+                SUBMIT_COMMAND => "SUBMIT_COMMAND",
+                _ => $"UNKNOWN({protocolType})"
+            };
+        }
     }
 
     /// <summary>
@@ -94,4 +137,11 @@ namespace CommonLib
         public int UserId { get; set; }
         public string UserName { get; set; }
     }
+
+    public struct WaittingRoomUser
+    {
+        public UserInfo UserInfo { get; set; }
+        public bool IsReady { get; set; }
+    }
+
 }

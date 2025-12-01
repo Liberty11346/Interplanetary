@@ -81,15 +81,15 @@ public class UILobby : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (roomList != null)
+        {
+            roomList.OnRoomEnterRequested -= presenter.HandleRoomEnter;
+        }
         if (presenter != null)
         {
             presenter.OnResponseJoinRoom -= HandleRoomJoinSuccess;
             presenter.Dispose();
         }
 
-        if (roomList != null)
-        {
-            roomList.OnRoomEnterRequested -= presenter.HandleRoomEnter;
-        }
     }
 }

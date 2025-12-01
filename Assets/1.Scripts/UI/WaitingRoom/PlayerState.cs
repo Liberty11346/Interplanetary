@@ -4,21 +4,16 @@ using CommonLib;
 
 public class PlayerState : MonoBehaviour
 {
+    [SerializeField]
     private TextMeshProUGUI _playerNameTMP,
                             _playerReadyTMP;
             
-    private void Start()
+    public void UpdateUI(UserInfo playerInfo, bool IsPlayerReady)
     {
-        _playerNameTMP = transform.Find("PlayerName").GetComponent<TextMeshProUGUI>();
-        _playerReadyTMP = transform.Find("PlayerReady").GetComponent<TextMeshProUGUI>();
-    }
-
-    public void UpdateUI(PlayerInfo playerInfo)
-    {
-        if( playerInfo.IsPlayerOnline )
+        if (playerInfo.UserId != -1)
         {
-            _playerNameTMP.text = playerInfo.PlayerName;
-            _playerReadyTMP.text = playerInfo.IsPlayerReady ? "준비 상태" : "대기 상태";   
+            _playerNameTMP.text = playerInfo.UserName;
+            _playerReadyTMP.text = IsPlayerReady ? "준비 상태" : "대기 상태";
         }
         else
         {

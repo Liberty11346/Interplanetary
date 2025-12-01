@@ -1,9 +1,11 @@
 using TMPro;
 using UnityEngine;
 using CommonLib;
+using System.Collections.Generic;
 public class PlayerArea : MonoBehaviour
 {
-    private PlayerState[] playerStates = new PlayerState[2];
+    [SerializeField]
+    private List<PlayerState> playerStates = new List<PlayerState>();
     private void Start()
     {
         for( int i = 0 ; i < 2 ; i++ )
@@ -12,11 +14,13 @@ public class PlayerArea : MonoBehaviour
         }
     }
 
-    public void UpdateUI(PlayerInfo[] playerInfo)
+    public void UpdateUI(WaittingRoomUser[] data)
     {
-        for( int i = 0 ; i < 2 ; i++ )
+        if (data == null)
+            return;
+        for( int i = 0 ; i < data.Length; i++ )
         {
-            playerStates[i].UpdateUI(playerInfo[i]);
+            playerStates[i].UpdateUI(data[i].UserInfo, data[i].IsReady);
         }
     }
 }

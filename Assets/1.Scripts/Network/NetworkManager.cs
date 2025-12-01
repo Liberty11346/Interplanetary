@@ -37,6 +37,9 @@ namespace CommonLib
         // 전송 동기화를 위한 세마포어 (Thread-Safety)
         private readonly SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
 
+        // Unity 메인 스레드 동기화 컨텍스트 (스레드 안전성)
+        private SynchronizationContext unitySyncContext;
+
         // --- 상태 관리 ---
         public NetworkConfig Config { get; private set; } = new NetworkConfig();
 
@@ -73,6 +76,20 @@ namespace CommonLib
             try
             {
                 Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 서버 연결 시도: {ip}:{port}");
+
+                // Unity 메인 스레드 SynchronizationContext 캡처
+                if (unitySyncContext == null)
+                {
+                    unitySyncContext = SynchronizationContext.Current;
+                    if (unitySyncContext != null)
+                    {
+                        Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] Unity 메인 스레드 컨텍스트 캡처 완료");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] ⚠️ SynchronizationContext를 캡처하지 못했습니다. 메인 스레드에서 호출되었는지 확인하세요.");
+                    }
+                }
 
                 // 기존 연결 정리
                 Cleanup();
@@ -211,16 +228,11 @@ namespace CommonLib
         /// </summary>
         private async Task EnsureConnection(Protocol protocol)
         {
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [EnsureConnection] 시작 - Protocol: {protocol.Type}");
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [EnsureConnection] IsReconnecting: {Config.IsReconnecting}");
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [EnsureConnection] IsConnected: {Config.IsConnected}");
-
             // 재접속 중
             if (Config.IsReconnecting)
             {
                 if (!IsReconnectingSend(protocol))
                 {
-                    Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 재접속 중에 차단된 프로토콜: {protocol.Type}");
                     throw new NetworkException("Reconnecting in progress");
                 }
                 await WaitWhileReconnecting();
@@ -238,8 +250,6 @@ namespace CommonLib
                     throw new NetworkException("Connection lost and cannot reconnect");
                 }
             }
-
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [EnsureConnection] 완료");
         }
 
         /// <summary>
@@ -247,21 +257,15 @@ namespace CommonLib
         /// </summary>
         private async Task WaitForServerReady(Protocol protocol)
         {
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [WaitForServerReady] 시작");
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [WaitForServerReady] IsEnterProtocol: {IsEnterProtocol(protocol)}");
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [WaitForServerReady] IsServerAllReady: {Config.IsServerAllReady}");
-
             if (!IsEnterProtocol(protocol))
             {
                 if (!Config.IsServerAllReady)
                 {
-                    Debug.LogWarning($"[{DateTime.Now:HH:mm:ss.fff}] ⚠️ 서버 준비 대기 시작!");
+                    Debug.LogWarning($"[NetworkManager] ⚠️ 서버 준비 대기 시작!");
                     await WaitUntilServerReady();
-                    Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 서버 준비 완료");
+                    Debug.Log($"[NetworkManager] 서버 준비 완료");
                 }
             }
-
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [WaitForServerReady] 완료");
         }
 
         /// <summary>
@@ -269,31 +273,23 @@ namespace CommonLib
         /// </summary>
         private async Task<NetworkResponse> SendRequest(Protocol protocol)
         {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-
             ResponseAwaiter awaiter = new ResponseAwaiter(new Dictionary<string, object>());
             int protocolId = protocol.Type;
-
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] ━━━ [SendRequest 시작] ━━━");
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] Protocol Type: {protocolId}");
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] Time: 0ms");
 
             lock (pendingResponsesLock)
             {
                 pendingResponses[protocolId] = awaiter;
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 대기자 등록 완료. 현재 대기 중: [{string.Join(", ", pendingResponses.Keys)}]");
             }
 
             if (IsShowLog(protocol))
             {
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=yellow>[클라 => 서버] Protocol_{protocol.Type} ({sw.ElapsedMilliseconds}ms)</color>");
+                Debug.Log($"[NetworkManager] <color=yellow>▲ 클라 => 서버: {ProtocolType.GetName(protocol.Type)}</color>");
             }
 
             // 요청 전송
             try
             {
                 await SendRawData(protocol.Serialize());
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 전송 완료: {sw.ElapsedMilliseconds}ms");
             }
             catch (Exception ex)
             {
@@ -303,8 +299,6 @@ namespace CommonLib
                 }
                 throw;
             }
-
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 응답 대기 시작... ({sw.ElapsedMilliseconds}ms)");
 
             // ✅ TaskCompletionSource 직접 await - Unity 프레임 독립적!
             try
@@ -319,17 +313,16 @@ namespace CommonLib
                     if (completedTask == awaiter.Task)
                     {
                         timeoutCts.Cancel();
-                        Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=green>✅ 응답 수신 성공! ({sw.ElapsedMilliseconds}ms)</color>");
                         return await awaiter.Task;
                     }
                     else
                     {
-                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] <color=red>❌ 타임아웃! ({sw.ElapsedMilliseconds}ms)</color>");
+                        Debug.LogError($"[NetworkManager] ❌ 타임아웃: {ProtocolType.GetName(protocolId)}");
                         lock (pendingResponsesLock)
                         {
                             pendingResponses.Remove(protocolId);
                         }
-                        throw new TimeoutException($"Protocol {protocolId} response timeout after {RESPONSE_TIMEOUT_MS}ms");
+                        throw new TimeoutException($"Protocol {ProtocolType.GetName(protocolId)} response timeout after {RESPONSE_TIMEOUT_MS}ms");
                     }
                 }
             }
@@ -351,33 +344,24 @@ namespace CommonLib
             if (!Config.IsConnected || stream == null)
                 return;
 
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] 전송 시작 - Size: {data.Length} bytes");
-
             await _sendSemaphore.WaitAsync().ConfigureAwait(false);
             try
             {
                 if (!Config.IsConnected || stream == null)
                     return;
 
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] 세마포어 획득: {sw.ElapsedMilliseconds}ms");
-
                 await stream.WriteAsync(data, 0, data.Length).ConfigureAwait(false);
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] WriteAsync 완료: {sw.ElapsedMilliseconds}ms");
-
                 await stream.FlushAsync().ConfigureAwait(false);
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] FlushAsync 완료: {sw.ElapsedMilliseconds}ms");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 전송 오류: {e.Message}");
+                Debug.LogError($"[NetworkManager] 전송 오류: {e.Message}");
                 Disconnect();
                 throw;
             }
             finally
             {
                 _sendSemaphore.Release();
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] [SendRawData] 세마포어 해제: {sw.ElapsedMilliseconds}ms");
             }
         }
 
@@ -453,15 +437,12 @@ namespace CommonLib
                         Protocol protocol = Protocol.Deserialize(messageBuffer);
                         if (protocol != null)
                         {
-                            if (IsShowLog(protocol))
-                                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=cyan>[클라 <= 서버] Protocol_{protocol.Type}</color>");
-
                             await HandleIncomingProtocol(protocol);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 프로토콜 처리 오류: {ex.Message}");
+                        Debug.LogError($"[NetworkManager] 프로토콜 처리 오류: {ex.Message}");
                     }
                 }
             }
@@ -490,49 +471,36 @@ namespace CommonLib
         /// </summary>
         private async Task HandleIncomingProtocol(Protocol protocol)
         {
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] ━━━ [HandleIncoming 시작] ━━━");
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] Protocol Type: {protocol.Type}");
-
-            // 파라미터 전체 출력
-            var parameters = protocol.GetParams();
-            Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] Parameters: {string.Join(", ", parameters.Select(kv => $"{kv.Key}={kv.Value}"))}");
-
             // 응답 매칭 확인
             if (protocol.Type == (int)ProtocolType.RESPONSE)
             {
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=cyan>Response 감지!</color>");
-
                 // protoId 확인
                 if (!protocol.HasParam("protoId"))
                 {
-                    Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] <color=red>⚠️ Response에 protoId 없음!</color>");
-                    Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] 사용 가능한 키: {string.Join(", ", parameters.Keys)}");
+                    Debug.LogError($"[NetworkManager] ⚠️ Response에 protoId 없음!");
                     return;
                 }
 
                 int protocolId = protocol.GetParam<int>("protoId");
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] protoId: {protocolId}");
+
+                if (IsShowLog(new Protocol(protocolId)))
+                {
+                    Debug.Log($"[NetworkManager] <color=cyan>▼ 클라 <= 서버: {ProtocolType.GetName(protocolId)} (응답)</color>");
+                }
 
                 lock (pendingResponsesLock)
                 {
-                    Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 현재 대기 중인 요청: [{string.Join(", ", pendingResponses.Keys)}]");
-
                     if (pendingResponses.TryGetValue(protocolId, out var awaiter))
                     {
-                        Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=green>✅ 매칭 성공! protocolId: {protocolId}</color>");
                         pendingResponses.Remove(protocolId);
 
                         var response = new NetworkResponse(protocol, awaiter.sendParam);
                         awaiter.Complete(response, null);
-
-                        Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] <color=green>awaiter.Complete() 호출 완료</color>");
                         return;
                     }
                     else
                     {
-                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] <color=red>⚠️ 매칭 실패!</color>");
-                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] 찾는 protocolId: {protocolId}");
-                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] 대기 중인 요청: [{string.Join(", ", pendingResponses.Keys)}]");
+                        Debug.LogError($"[NetworkManager] ⚠️ 응답 매칭 실패: {ProtocolType.GetName(protocolId)}");
                     }
                 }
             }
@@ -546,14 +514,44 @@ namespace CommonLib
 
             if (handler != null)
             {
-                Debug.Log($"[{DateTime.Now:HH:mm:ss.fff}] 핸들러 실행: Protocol {protocol.Type}");
-                try
+                if (IsShowLog(protocol))
                 {
-                    await handler(protocol);
+                    Debug.Log($"[NetworkManager] <color=cyan>▼ 클라 <= 서버: {ProtocolType.GetName(protocol.Type)}</color>");
                 }
-                catch (Exception e)
+
+                // Unity 메인 스레드로 마샬링
+                if (unitySyncContext != null)
                 {
-                    Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 프로토콜 핸들러 오류: {e.Message}");
+                    var tcs = new TaskCompletionSource<bool>();
+                    unitySyncContext.Post(async _ =>
+                    {
+                        try
+                        {
+                            await handler(protocol);
+                            tcs.SetResult(true);
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogError($"[NetworkManager] 프로토콜 핸들러 오류: {e.Message}");
+                            Debug.LogError($"[NetworkManager] Stack Trace: {e.StackTrace}");
+                            tcs.SetException(e);
+                        }
+                    }, null);
+                    await tcs.Task;
+                }
+                else
+                {
+                    // SynchronizationContext가 없으면 직접 실행 (폴백)
+                    Debug.LogWarning($"[NetworkManager] ⚠️ SynchronizationContext 없음, 백그라운드 스레드에서 직접 실행");
+                    try
+                    {
+                        await handler(protocol);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] [NetworkManager] 프로토콜 핸들러 오류: {e.Message}");
+                        Debug.LogError($"[{DateTime.Now:HH:mm:ss.fff}] Stack Trace: {e.StackTrace}");
+                    }
                 }
             }
             else

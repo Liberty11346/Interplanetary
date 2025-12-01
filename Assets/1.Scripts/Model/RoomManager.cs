@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using CommonLib;
+using System.Linq;
 
 /// <summary>
 /// 룸 관리 및 서버 통신 담당 (BaseManager 의존성 제거)
@@ -39,21 +40,26 @@ public class RoomManager
     public event Action<string> OnStatusMessage;
     // --- 룸 관련 이벤트들 ---
     public event Action<RoomInfo> OnRoomJoinSuccess;
+    public event Action<string, int> OnRoomCreateSuccess;
     public event Action<string> OnRoomJoinFailure;
     public event Action<List<RoomInfo>> OnRoomListUpdated;
     public event Action OnRoomLeft;
-    public event Action OnRoomInfoChanged;
+    public event Action OnGameStarting; // 게임 시작 알림
+    public event Action<RoomInfo, WaittingRoomUser[]> OnWaittingRoomInfoChanged; // 방 정보 변경 알림 (WaitingRoom UI용)
 
     // --- 현재 상태 ---
     private RoomInfo? currentRoom = null;
     private List<RoomInfo> cachedRoomList = new List<RoomInfo>();
     private bool isInRoom = false;
     private UserInfo? currentUser = null;
+    private (RoomInfo, WaittingRoomUser[]) currentWaittingRoomInfo;
 
     // --- 속성들 ---
     public RoomInfo? CurrentRoom => currentRoom;
     public bool IsInRoom => isInRoom;
     public List<RoomInfo> CachedRoomList => new List<RoomInfo>(cachedRoomList);
+
+    public (RoomInfo, WaittingRoomUser[]) CachedCurrRoom => currentWaittingRoomInfo;
 
     // --- 초기화 및 생명주기 ---
     public async Task Initailize(UserInfo user)
@@ -176,22 +182,26 @@ public class RoomManager
             ValidateNetworkConnection();
 
             var protocol = new Protocol(ProtocolType.REQUEST_CREATE_ROOM)
-                .AddParam("room_name", roomName)
+                .AddParam("roomName", roomName)
                 .AddParam("mapId", mapId)
-                .AddParam("is_private", isPrivate);
+                .AddParam("isPrivate", isPrivate);
 
             NetworkResponse response = await SafeSendAsync(protocol, "룸 생성");
 
             if (response.isSuccess)
             {
+                // response.AddParam("roomId", room.RoomId);
+                // response.AddParam("slot", room.NextSlot());
+                // response.AddObject("roomList", roomList);
                 // 응답 파라미터: roomId, slot
                 string roomId = response.GetParam<string>("roomId");
                 int slot = response.GetParam<int>("slot");
                 RoomInfo[] rooms = response.GetParam<RoomInfo[]>("roomList");
 
                 UpdateCashedRooms(rooms);
-                OnRoomJoinSuccess?.Invoke(cachedRoomList.Find(x => x.RoomId == roomId));
+                OnRoomListUpdated?.Invoke(rooms.ToList());
                 EmitStatusMessage($"생성된 룸 ID: {roomId}, 슬롯: {slot}");
+                OnRoomCreateSuccess?.Invoke(roomId, slot);
                 return true;
             }
             else
@@ -244,23 +254,37 @@ public class RoomManager
             if (response.isSuccess)
             {
                 // 응답 파라미터: roomInfo, chatChannelID
-                var roomInfoData = response.GetParam<Dictionary<string, object>>("roomInfo");
                 string chatChannelID = response.GetParam<string>("chatChannelID");
+                RoomInfo roominfo = response.GetStruct<RoomInfo>("roomInfo");
+                WaittingRoomUser[] users = response.GetParam<WaittingRoomUser[]>("users");
 
-                if (roomInfoData != null)
-                {
-                    currentRoom = ParseRoomInfo(roomInfoData);
-                    isInRoom = true;
+                currentRoom = roominfo;
+                isInRoom = true;
 
-                    EmitStatusMessage($"룸에 참가함: {currentRoom.Value}, 채팅 채널: {chatChannelID}");
-                    OnRoomJoinSuccess?.Invoke(currentRoom.Value);
-                    return true;
-                }
-                else
+                EmitStatusMessage($"룸에 참가함: {currentRoom.Value}, 채팅 채널: {chatChannelID}");
+
+                // 현재 룸 정보 업데이트
+                if (isInRoom && currentRoom.HasValue && currentRoom.Value.RoomId == roominfo.RoomId)
                 {
-                    OnRoomJoinFailure?.Invoke("룸 정보를 받지 못했습니다");
-                    return false;
+                    currentRoom = roominfo;
+                    EmitStatusMessage($"현재 룸 정보 업데이트: {roominfo}");
+
+                    currentWaittingRoomInfo = (roominfo, users);
+                    // WaitingRoom UI를 위한 이벤트 발생
+                    OnWaittingRoomInfoChanged?.Invoke(roominfo, users);
                 }
+
+                // 캐시된 룸 목록 업데이트
+                int index = cachedRoomList.FindIndex(room => room.RoomId == roominfo.RoomId);
+                if (index >= 0)
+                {
+                    cachedRoomList[index] = roominfo;
+                    OnRoomListUpdated?.Invoke(cachedRoomList);
+                }
+
+
+                OnRoomJoinSuccess?.Invoke(currentRoom.Value);
+                return true;
             }
             else
             {
@@ -364,6 +388,60 @@ public class RoomManager
             room.RoomState == CommonLib.RoomState.Open && room.PlayerCount < room.MaxPlayers);
     }
 
+
+    public async Task<bool> RequestJoinedRoomInfoRefresh()
+    {
+        try
+        {
+            if (!isInRoom)
+            {
+                EmitError("현재 룸에 있지 않음");
+                return false;
+            }
+
+            ValidateNetworkConnection();
+
+            var protocol = new Protocol(ProtocolType.REQUEST_REFRESH_JOINED_ROOM_INFO);
+
+            NetworkResponse response = await SafeSendAsync(protocol);
+
+            if(response.isSuccess)
+            {
+                string roomId = protocol.GetParam<string>("roomId");
+                RoomInfo? roominfo = protocol.GetStruct<RoomInfo>("roomInfo");
+                WaittingRoomUser[] users = protocol.GetObject<WaittingRoomUser[]>("users");
+
+                if (roomId != null && roominfo != null && users != null)
+                {
+                    // 현재 룸 정보 업데이트
+                    if (isInRoom && currentRoom.HasValue && currentRoom.Value.RoomId == roominfo.Value.RoomId)
+                    {
+                        currentRoom = roominfo;
+                        EmitStatusMessage($"현재 룸 정보 업데이트: {roominfo}");
+
+                        currentWaittingRoomInfo = (roominfo.Value, users);
+                        // WaitingRoom UI를 위한 이벤트 발생
+                        OnWaittingRoomInfoChanged?.Invoke(roominfo.Value, users);
+                    }
+
+                    // 캐시된 룸 목록 업데이트
+                    int index = cachedRoomList.FindIndex(room => room.RoomId == roominfo.Value.RoomId);
+                    if (index >= 0)
+                    {
+                        cachedRoomList[index] = roominfo.Value;
+                        OnRoomListUpdated?.Invoke(cachedRoomList);
+                    }
+                }
+            }
+            return response.isSuccess;
+        }
+        catch (Exception e)
+        {
+            EmitError($"게임 준비 오류: {e.Message}");
+            return false;
+        }
+    }
+
     // --- 내부 메서드들 ---
 
     /// <summary>
@@ -399,32 +477,31 @@ public class RoomManager
     /// </summary>
     private async Task HandleRoomInfoChanged(Protocol protocol)
     {
-        var roomInfoData = protocol.GetParam<Dictionary<string, object>>("roomInfo");
-        if (roomInfoData != null)
+        string roomId = protocol.GetParam<string>("roomId");
+        RoomInfo? roominfo = protocol.GetStruct<RoomInfo>("roomInfo");
+        WaittingRoomUser[] users = protocol.GetObject<WaittingRoomUser[]>("users");
+
+        if (roomId != null && roominfo != null && users != null)
         {
-            var updatedRoom = ParseRoomInfo(roomInfoData);
-
             // 현재 룸 정보 업데이트
-            if (isInRoom && currentRoom.HasValue && currentRoom.Value.RoomId == updatedRoom.RoomId)
+            if (isInRoom && currentRoom.HasValue && currentRoom.Value.RoomId == roominfo.Value.RoomId)
             {
-                currentRoom = updatedRoom;
-                EmitStatusMessage($"현재 룸 정보 업데이트: {updatedRoom}");
+                currentRoom = roominfo;
+                EmitStatusMessage($"현재 룸 정보 업데이트: {roominfo}");
 
+                currentWaittingRoomInfo = (roominfo.Value, users);
                 // WaitingRoom UI를 위한 이벤트 발생
-                // OnRoomInfoChanged?.Invoke(updatedRoom);
+                OnWaittingRoomInfoChanged?.Invoke(roominfo.Value, users);
             }
 
             // 캐시된 룸 목록 업데이트
-            int index = cachedRoomList.FindIndex(room => room.RoomId == updatedRoom.RoomId);
+            int index = cachedRoomList.FindIndex(room => room.RoomId == roominfo.Value.RoomId);
             if (index >= 0)
             {
-                cachedRoomList[index] = updatedRoom;
+                cachedRoomList[index] = roominfo.Value;
                 OnRoomListUpdated?.Invoke(cachedRoomList);
             }
         }
-
-        OnRoomInfoChanged?.Invoke();
-
         await Task.CompletedTask;
     }
 

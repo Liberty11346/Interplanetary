@@ -4,13 +4,9 @@ using UnityEngine;
 
 public class TopArea : MonoBehaviour
 {
+    [SerializeField]
     private TextMeshProUGUI _roomNameTMP,
                             _mapNameTMP;
-    private void Start()
-    {
-        _roomNameTMP = transform.Find("RoomName").GetComponent<TextMeshProUGUI>();
-        _mapNameTMP = transform.Find("MapName").GetComponent<TextMeshProUGUI>();        
-    }
 
     public void UpdateUI(ConvertedRoomInfo roomInfo)
     {
