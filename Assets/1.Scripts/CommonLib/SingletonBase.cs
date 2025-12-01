@@ -3,6 +3,20 @@ using UnityEngine;
 namespace CommonLib
 {
     /// <summary>
+    /// 싱글톤 상태 관리를 위한 레지스트리 (Domain Reload 문제 해결용)
+    /// </summary>
+    public static class SingletonRegistry
+    {
+        public static bool IsQuitting { get; set; } = false;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void Reset()
+        {
+            IsQuitting = false;
+        }
+    }
+
+    /// <summary>
     /// Unity MonoBehaviour 기반 싱글톤 베이스 클래스
     /// </summary>
     /// <typeparam name="T">싱글톤으로 만들 클래스 타입</typeparam>
@@ -10,8 +24,7 @@ namespace CommonLib
     {
         private static T _instance;
         private static readonly object _lock = new object();
-        private static bool _applicationIsQuitting = false;
-
+        
         /// <summary>
         /// 싱글톤 인스턴스
         /// </summary>
@@ -19,8 +32,14 @@ namespace CommonLib
         {
             get
             {
-                if (_applicationIsQuitting)
+                if (SingletonRegistry.IsQuitting)
                 {
+                    // 종료 중이라도 인스턴스가 살아있다면 반환
+                    if (_instance != null)
+                    {
+                        return _instance;
+                    }
+
                     Debug.LogWarning($"[SingletonBase] Instance '{typeof(T)}' already destroyed on application quit. Won't create again - returning null.");
                     return null;
                 }
@@ -77,7 +96,7 @@ namespace CommonLib
         /// <summary>
         /// MonoBehaviour Awake
         /// </summary>
-        private void Awake()
+        protected virtual void Awake()
         {
             if (_instance == null)
             {
@@ -97,7 +116,7 @@ namespace CommonLib
         /// </summary>
         public void OnApplicationQuit()
         {
-            _applicationIsQuitting = true;
+            SingletonRegistry.IsQuitting = true;
         }
 
         /// <summary>

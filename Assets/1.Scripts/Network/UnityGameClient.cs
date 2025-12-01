@@ -3,10 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using System.Linq;
 using UnityEngine;
 using CommonLib;
 using CommonLib.Commands;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using ProtocolType = CommonLib.ProtocolType;
 using System.Data;
 
@@ -31,6 +33,7 @@ public class UnityGameClient : MonoBehaviour
     private int _myPlayerId = -1;
     private long _currentTick = 0;
     private string _lastConnectError = "";
+    private int _currentMapId = 1; // 현재 로드 중인 맵 ID
 
 
     // C# Eventsㅜ 
@@ -324,6 +327,15 @@ public class UnityGameClient : MonoBehaviour
                 HandleUserLeft(protocol);
                 break;
 
+            case ProtocolType.HEARTBEAT_ACK:
+                // 하트비트 응답 - 연결 상태 유지 확인용이므로 특별한 처리 불필요
+                LogDebug("Heartbeat ACK received");
+                break;
+
+            case ProtocolType.GAME_SET:
+                HandleGameSet(protocol);
+                break;
+
             case ProtocolType.GAME_STARTED:
                 HandleGameStarted(protocol);
                 break;
@@ -402,6 +414,19 @@ public class UnityGameClient : MonoBehaviour
                 }
                 break;
 
+            case ProtocolType.REQUEST_READY:
+                if (isSuccess)
+                {
+                    LogDebug($"Ready request accepted. Waiting for GAME_STARTED...");
+                }
+                else
+                {
+                    string reason = protocol.GetParam<string>("message");
+                    LogDebug($"Ready request failed: {reason}");
+                    ErrorOccurred?.Invoke($"Ready request failed: {reason}");
+                }
+                break;
+
             default:
                 // 필요 시 다른 응답 타입도 여기서 라우팅 가능
                 break;
@@ -434,14 +459,84 @@ public class UnityGameClient : MonoBehaviour
         UserLeft?.Invoke(userId, playerCount);
     }
 
-    private void HandleGameStarted(Protocol protocol)
+    private void HandleGameSet(Protocol protocol)
     {
         var gameStartData = new GameStartData
         {
             GameId = protocol.GetParam<int>("gameId"),
             MapId = protocol.GetParam<int>("mapId"),
-            PlayersJson = protocol.GetParam<string>("players")
+            PlayersJson = protocol.GetParam<string>("players") ?? "[]"
         };
+
+        // MapInfoData
+        var mapInfo = protocol.GetStruct<MapInfoData>("mapinfo");
+        LogDebug($"Received MapInfo: {mapInfo.mapName} ({mapInfo.width}x{mapInfo.height})");
+
+        // MapPlanetInfoData[]
+        var mapPlanetInfos = new List<MapPlanetInfoData>();
+        try
+        {
+            string mapPlanetInfoJson = protocol.GetParam<string>("mapplanetinfo");
+            if (!string.IsNullOrEmpty(mapPlanetInfoJson))
+            {
+                var dtos = JsonConvert.DeserializeObject<MapPlanetInfoData[]>(mapPlanetInfoJson);
+                if (dtos != null) mapPlanetInfos.AddRange(dtos);
+            }
+        }
+        catch (Exception ex) { LogDebug($"Failed to parse mapplanetinfo: {ex.Message}"); }
+
+        // PlanetInfoData[]
+        var planetInfos = new List<PlanetInfoData>();
+        try
+        {
+            string planetInfoJson = protocol.GetParam<string>("planets");
+            if (!string.IsNullOrEmpty(planetInfoJson))
+            {
+                var dtos = JsonConvert.DeserializeObject<PlanetInfoData[]>(planetInfoJson);
+                if (dtos != null) planetInfos.AddRange(dtos);
+            }
+        }
+        catch (Exception ex) { LogDebug($"Failed to parse planets info: {ex.Message}"); }
+
+        // MapRouteInfoData[]
+        var routes = new List<MapRouteInfoData>();
+        try
+        {
+            string routesJson = protocol.GetParam<string>("routes");
+            if (!string.IsNullOrEmpty(routesJson))
+            {
+                var dtos = JsonConvert.DeserializeObject<MapRouteInfoData[]>(routesJson);
+                if (dtos != null) routes.AddRange(dtos);
+            }
+        }
+        catch (Exception ex) { LogDebug($"Failed to parse routes: {ex.Message}"); }
+
+        // 데이터 조합하여 GameStartData.Planets 구성
+        // 서버에서 보내주는 구조가 변경되었으므로, 클라이언트에서 PlanetData로 변환하여 사용
+        var planetDataList = new List<PlanetData>();
+        
+        // PlanetInfoData를 딕셔너리로 변환하여 빠른 조회
+        var planetInfoDict = planetInfos.ToDictionary(p => p.id, p => p);
+
+        foreach (var mapPlanet in mapPlanetInfos)
+        {
+            if (planetInfoDict.TryGetValue(mapPlanet.planetId, out var info))
+            {
+                planetDataList.Add(new PlanetData
+                {
+                    PlanetId = mapPlanet.id, // 맵 상의 고유 ID
+                    OwnerId = 0, // 초기 소유자는 0 (중립) 또는 별도 로직 필요
+                    Position = new CommonLib.Vector2(mapPlanet.positionX, mapPlanet.positionY),
+                    Minerals = 0, // 초기 자원
+                    Gas = 0,
+                    Name = info.name,
+                    Supply = 0
+                });
+            }
+        }
+
+        gameStartData.Planets = planetDataList.ToArray();
+        gameStartData.Routes = routes.ToArray();
 
         // 내 플레이어 ID 찾기
         try
@@ -461,9 +556,16 @@ public class UnityGameClient : MonoBehaviour
             LogDebug($"Failed to parse players data: {ex.Message}");
         }
 
-        LogDebug($"Game started! GameId: {gameStartData.GameId}, MyPlayerId: {_myPlayerId}");
+        LogDebug($"Game Set! GameId: {gameStartData.GameId}, MyPlayerId: {_myPlayerId}, Planets: {gameStartData.Planets.Length}");
 
         GameStarted?.Invoke(gameStartData);
+    }
+
+    private void HandleGameStarted(Protocol protocol)
+    {
+        // 실제 게임 틱 시작 알림
+        LogDebug("Game Started (Tick Start)!");
+        // 필요한 경우 추가 이벤트 발생
     }
 
     private void HandleResourcesUpdated(Protocol protocol)
@@ -611,6 +713,7 @@ public class UnityGameClient : MonoBehaviour
     /// </summary>
     public void CreateRoom(string roomName, int mapId, bool isPrivate = false)
     {
+        _currentMapId = mapId; // 현재 맵 ID 저장
         var protocol = new Protocol(ProtocolType.REQUEST_CREATE_ROOM)
             .AddParam("roomName", roomName)
             .AddParam("mapId", mapId)
@@ -626,6 +729,72 @@ public class UnityGameClient : MonoBehaviour
         var protocol = new Protocol(ProtocolType.REQUEST_READY)
             .AddParam("isReady", isReady);
         SendProtocol(protocol);
+    }
+
+    /// <summary>
+    /// 게임 씬 로딩 및 초기화 완료 알림 - 클라이언트 → 서버 (프로토콜: REQUEST_GAME_CL_READY = 10200)
+    /// </summary>
+    public void RequestGameClientReady()
+    {
+        var protocol = new Protocol(ProtocolType.REQUEST_GAME_CL_READY);
+        SendProtocol(protocol);
+        LogDebug("Sent REQUEST_GAME_CL_READY");
+    }
+
+    /// <summary>
+    /// 맵 데이터 요청 - 클라이언트 → 서버
+    /// 서버에서 mapId에 해당하는 행성과 경로 데이터를 요청
+    /// </summary>
+    public void RequestMapData(int mapId)
+    {
+        // REQUEST_TABLEDATA 프로토콜을 사용해 맵 데이터 요청
+        var protocol = new Protocol(ProtocolType.REQUEST_TABLEDATA)
+            .AddParam("table_name", $"map_{mapId}");
+        SendProtocol(protocol);
+        LogDebug($"Requested map data for mapId: {mapId}");
+    }
+
+    /// <summary>
+    /// Launch a lightweight dummy client connection to join the same room and send READY.
+    /// This is used for local testing to simulate a second player so server will start the game.
+    /// </summary>
+    public async Task LaunchDummyJoin(string roomId, int slot)
+    {
+        try
+        {
+            LogDebug($"[Dummy] Connecting dummy client to join room {roomId} slot {slot}");
+            using (var tcp = new TcpClient())
+            {
+                await tcp.ConnectAsync(serverAddress, serverPort);
+                using (var stream = tcp.GetStream())
+                {
+                    // Build and send REQUEST_JOIN_ROOM
+                    var joinProto = new Protocol(ProtocolType.REQUEST_JOIN_ROOM)
+                        .AddParam("userId", 0)
+                        .AddParam("roomId", roomId)
+                        .AddParam("slot", slot);
+                    byte[] joinData = joinProto.Serialize();
+                    await stream.WriteAsync(joinData, 0, joinData.Length);
+
+                    await Task.Delay(120);
+
+                    // Send REQUEST_READY
+                    var readyProto = new Protocol(ProtocolType.REQUEST_READY)
+                        .AddParam("isReady", true);
+                    byte[] readyData = readyProto.Serialize();
+                    await stream.WriteAsync(readyData, 0, readyData.Length);
+
+                    LogDebug($"[Dummy] Sent JOIN and READY for room {roomId} slot {slot}");
+
+                    // wait a moment to let server process then close
+                    await Task.Delay(300);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LogDebug($"[Dummy] Error: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -646,20 +815,14 @@ public class UnityGameClient : MonoBehaviour
     /// </summary>
     public void RequestProduceFleet(int planetId, int fleetType)
     {
-        long tick = _currentTick + 10; // 간단히 클라이언트 기준 예약 틱
         var protocol = new Protocol(ProtocolType.SUBMIT_COMMAND)
             .AddParam("commandType", (int)CommonLib.Commands.GameCommandType.ProduceFleet)
-            .AddParam("commandData", JsonConvert.SerializeObject(new
-            {
-                tick = tick,
-                target = planetId,
-                fleetType = fleetType
-            }))
-            .AddParam("tick", tick)
+            .AddParam("commandData", JsonConvert.SerializeObject(new { target = planetId, fleetType = fleetType }))
+            .AddParam("tick", 0L)
             .AddParam("target", planetId)
             .AddParam("fleetType", fleetType);
         SendProtocol(protocol);
-        LogDebug($"Submitted ProduceFleet: planet={planetId}, fleetType={fleetType}, tick={tick}");
+        LogDebug($"Submitted ProduceFleet: planet={planetId}, fleetType={fleetType}");
     }
 
     /// <summary>
@@ -669,20 +832,14 @@ public class UnityGameClient : MonoBehaviour
     /// </summary>
     public void RequestMoveFleet(int fleetId, int targetPlanetId)
     {
-        long tick = _currentTick + 5; // 간단히 클라이언트 기준 예약 틱
         var protocol = new Protocol(ProtocolType.SUBMIT_COMMAND)
             .AddParam("commandType", (int)CommonLib.Commands.GameCommandType.MoveFleet)
-            .AddParam("commandData", JsonConvert.SerializeObject(new
-            {
-                tick = tick,
-                target_fleet = fleetId,
-                target_planet = targetPlanetId
-            }))
-            .AddParam("tick", tick)
+            .AddParam("commandData", JsonConvert.SerializeObject(new { target_fleet = fleetId, target_planet = targetPlanetId }))
+            .AddParam("tick", 0L)
             .AddParam("target_fleet", fleetId)
             .AddParam("target_planet", targetPlanetId);
         SendProtocol(protocol);
-        LogDebug($"Submitted MoveFleet: fleet={fleetId} -> planet={targetPlanetId}, tick={tick}");
+        LogDebug($"Submitted MoveFleet: fleet={fleetId} -> planet={targetPlanetId}");
     }
 
     // 사용하지 않음: 서버가 Protocol 내 개별 파라미터를 직접 읽으므로 각 요청에서 바로 직렬화해 전송합니다.

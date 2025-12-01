@@ -3,11 +3,13 @@ using UnityEngine.UI;
 using TMPro;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
+using CommonLib;
+
 /// <summary>
 /// 행성 UI 버튼 클래스
 /// 행성의 자원은 생성 시점에 고정되며, 업데이트되지 않습니다.
 /// </summary>
-public class PlanetUIButton : MonoBehaviour, IPointerClickHandler
+public class PlanetUIButton : MonoBehaviour
 {
     [Header("Visual Settings")]
     public Color neutralColor = Color.white;
@@ -15,7 +17,8 @@ public class PlanetUIButton : MonoBehaviour, IPointerClickHandler
     public Color player2Color = Color.magenta;
 
     [Header("UI Components")]
-    //public Button planetButton;
+    public Button planetButton;
+    public Button produceFleetButton;
     public Image planetImage;
     public TextMeshProUGUI planetNameText;
     public TextMeshProUGUI mineralsText;
@@ -35,42 +38,116 @@ public class PlanetUIButton : MonoBehaviour, IPointerClickHandler
     private int _supply = 0;
     private float _conquestProgress = 0f;
     private bool _isSelected = false;
+    private int _myPlayerId = -1;
+
+    private void Awake()
+    {
+        if (planetButton == null)
+            planetButton = GetComponent<Button>();
+    }
 
     private void Start()
     {
-        Initialize();
+        if (planetButton != null)
+        {
+            planetButton.onClick.AddListener(() => OnPlanetButtonClicked());
+        }
+
+        if (produceFleetButton != null)
+        {
+            produceFleetButton.onClick.AddListener(() => OnProduceFleetClicked());
+            produceFleetButton.gameObject.SetActive(false); // 초기에는 비활성화
+        }
+
+        // GameManager 이벤트 구독: 행성 선택 상태 변화 감지
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnPlanetSelected += OnPlanetSelectionChanged;
+            _myPlayerId = GameManager.Instance.myPlayerId;
+        }
     }
 
-    public void Initialize(int minerals = -1, int gas = -1, int supply = -1, string planetName = null)
+    private void OnDestroy()
     {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnPlanetSelected -= OnPlanetSelectionChanged;
+        }
 
-        if (planetNameText != null)
-            planetNameText.text = !string.IsNullOrEmpty(planetName) ? planetName : $"Planet {planetId}";
-
-        if (conquestProgressText != null)
-            conquestProgressText.gameObject.SetActive(false); // 기본적으로 비활성화
-
-        // 자원값 설정 (매개변수로 받거나 기본값 사용)
-        _minerals = minerals >= 0 ? minerals : Random.Range(5, 15);
-        _gas = gas >= 0 ? gas : Random.Range(3, 10);
-        _supply = supply >= 0 ? supply : Random.Range(1, 5);
-
-        UpdateVisuals();
+        if (produceFleetButton != null)
+        {
+            produceFleetButton.onClick.RemoveAllListeners();
+        }
     }
 
     private void OnPlanetButtonClicked()
     {
-        // 좌클을 막았습니다. 사실 버튼도 필요 없어졌습니다.
-        //Debug.Log($"Planet {planetId} clicked!");
-        //GameManager.Instance.SelectPlanet(planetId);
+        Debug.Log($"Planet {planetId} clicked!");
+        GameManager.Instance.SelectPlanet(planetId);
     }
-        public void OnPointerClick(PointerEventData eventData)
+
+    private void OnProduceFleetClicked()
     {
-        if (eventData.button == PointerEventData.InputButton.Right)
+        Debug.Log($"Produce fleet on planet {planetId}!");
+        // 함대 생산 요청 (플릿 타입 0으로 통일)
+        if (GameManager.Instance != null)
         {
-            Debug.Log($"Planet {planetId} clicked!");
-            GameManager.Instance.SelectPlanet(planetId);
+            GameManager.Instance.CommandFleetSpawn(0);
         }
+    }
+
+    private void OnPlanetSelectionChanged(int selectedPlanetId)
+    {
+        // 이 행성이 선택되었는지 확인
+        bool isThisPlanetSelected = (selectedPlanetId == planetId);
+        _isSelected = isThisPlanetSelected;
+
+        // 선택된 행성이고, 내 소유이며, 모성인 경우에만 함대 생산 버튼 표시
+        if (produceFleetButton != null)
+        {
+            bool shouldShowButton = isThisPlanetSelected && _ownerId == _myPlayerId && IsHomePlanet;
+            produceFleetButton.gameObject.SetActive(shouldShowButton);
+        }
+
+        Debug.Log($"Planet {planetId} selection changed: selected={_isSelected}, owner={_ownerId}, myId={_myPlayerId}, isHome={IsHomePlanet}");
+    }
+
+    public bool IsHomePlanet { get; private set; }
+
+    /// <summary>
+    /// 서버로부터 받은 행성 데이터로 설정
+    /// </summary>
+    public void SetPlanetData(PlanetData planetData)
+    {
+        planetId = planetData.PlanetId;
+        _ownerId = planetData.OwnerId;
+        _minerals = (int)planetData.Minerals;
+        _gas = (int)planetData.Gas;
+        _supply = planetData.Supply;
+        //IsHomePlanet = planetData.IsHomePlanet;
+
+        // MyPlayerId 업데이트 (게임 시작 후 처음 호출될 때 설정)
+        if (_myPlayerId == -1 && GameManager.Instance != null)
+        {
+            _myPlayerId = GameManager.Instance.myPlayerId;
+        }
+
+        Debug.Log($"[PlanetUIButton] Setting planet data - ID: {planetId}, Name: {planetData.Name}, IsHomePlanet: {IsHomePlanet}, planetNameText: {(planetNameText != null ? "assigned" : "NULL")}");
+
+        if (planetNameText != null)
+        {
+            planetNameText.text = planetData.Name;
+            Debug.Log($"[PlanetUIButton] Planet name set to: {planetNameText.text}");
+        }
+        else
+        {
+            Debug.LogWarning($"[PlanetUIButton] planetNameText is NULL for planet {planetId}!");
+        }
+
+        if (conquestProgressText != null)
+            conquestProgressText.gameObject.SetActive(false);
+
+        UpdateVisuals();
     }
 
     public void UpdateOwnership(int newOwnerId)
@@ -139,8 +216,8 @@ public class PlanetUIButton : MonoBehaviour, IPointerClickHandler
     public bool IsSelected => _isSelected;
 
     // 함대 스폰 위치 (UI 좌표계)
-    public Vector3 GetFleetSpawnPosition()
+    public UnityEngine.Vector3 GetFleetSpawnPosition()
     {
-        return transform.position + Vector3.right * 100f; // UI에서 오른쪽으로 100픽셀
+        return transform.position + UnityEngine.Vector3.right * 100f; // UI에서 오른쪽으로 100픽셀
     }
 }

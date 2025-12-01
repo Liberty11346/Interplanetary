@@ -1,7 +1,10 @@
 using UnityEngine;
 using CommonLib;
+using Vector2 = UnityEngine.Vector2;
+using CommonVector2 = CommonLib.Vector2;
 using System.Collections.Generic;
 using System;
+using Newtonsoft.Json;
 
 
 /// <summary>
@@ -16,6 +19,8 @@ public class GameManager : MonoBehaviour
     [Header("Game Settings")]
     public bool autoStartGame = true;
     public float gameTickRate = 1f; // 초당 틱 수
+    public int debugMapId = 1; // 디버그용 맵 ID (F5로 로드)
+    public int selectedMapId = 1; // 로드할 맵 번호
 
     [Header("Managers")]
     public UnityGameClient gameClient;      // 서버 통신 담당
@@ -42,6 +47,7 @@ public class GameManager : MonoBehaviour
     private Dictionary<int, PlanetData> _planetDataCache = new Dictionary<int, PlanetData>();
     private Dictionary<int, FleetData> _fleetDataCache = new Dictionary<int, FleetData>();
     private Dictionary<int, ResourceData> _playerResourceCache = new Dictionary<int, ResourceData>();
+    private Dictionary<int, int> _homePlanetByPlayer = new Dictionary<int, int>(); // 플레이어별 모성 ID 저장
 
     private void Awake()
     {
@@ -58,6 +64,7 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         InitializeGame();
+        // 자동 시작은 OnConnectionChanged에서 처리
     }
 
     private void Update()
@@ -85,6 +92,8 @@ public class GameManager : MonoBehaviour
 
         if (visualizationManager == null)
             visualizationManager = FindFirstObjectByType<VisualizationManager>();
+
+        Debug.Log($"[GameManager] gameClient: {(gameClient != null ? "찾음" : "없음")}, uiManager: {(uiManager != null ? "찾음" : "없음")}, visualizationManager: {(visualizationManager != null ? "찾음" : "없음")}");
 
         // 게임 클라이언트 이벤트 구독
         if (gameClient != null)
@@ -163,9 +172,11 @@ public class GameManager : MonoBehaviour
             PrintGameState();
         }
 
+        // F5: debugMapId에 설정된 맵을 로드 (Inspector에서 변경 가능)
         if (Input.GetKeyDown(KeyCode.F5))
         {
-            RequestMapFromServer();
+            Debug.Log($"F5: 서버에서 맵 {debugMapId} 요청");
+            LoadMap(debugMapId);
         }
     }
 
@@ -177,7 +188,23 @@ public class GameManager : MonoBehaviour
     private void OnGameStarted(GameStartData gameData)
     {
         isGameStarted = true;
+        mapLoadRequested = false; // 다음 게임을 위해 초기화
         myPlayerId = gameClient != null ? gameClient.MyPlayerId : -1;
+        if (myPlayerId == -1 && !string.IsNullOrEmpty(gameData.PlayersJson))
+        {
+            try
+            {
+                var players = JsonConvert.DeserializeObject<PlayerData[]>(gameData.PlayersJson);
+                if (players != null && players.Length > 0)
+                {
+                    myPlayerId = players[0].PlayerId;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Failed to parse PlayersJson for myPlayerId: {ex.Message}");
+            }
+        }
         gameTime = 0f;
         _currentTick = 0;
         _tickTimer = 0f;
@@ -203,6 +230,7 @@ public class GameManager : MonoBehaviour
         _planetDataCache.Clear();
         _fleetDataCache.Clear();
         _playerResourceCache.Clear();
+        _homePlanetByPlayer.Clear();
         MyHomePlanetId = -1; // 리셋
 
         // 게임 데이터가 있으면 캐싱
@@ -212,16 +240,22 @@ public class GameManager : MonoBehaviour
             {
                 _planetDataCache[planet.PlanetId] = planet;
 
-                // 내 소유의 행성이면 모성으로 설정 (첫 번째 행성을 모성으로 가정)
-                if (MyHomePlanetId == -1 && planet.OwnerId == myPlayerId)
+                // IsHomePlanet 플래그로 모성 저장
+                //if (planet.IsHomePlanet)
                 {
-                    MyHomePlanetId = planet.PlanetId;
-                    Debug.Log($"My home planet is set to: {MyHomePlanetId}");
+                    //_homePlanetByPlayer[planet.OwnerId] = planet.PlanetId;
+                    
+                    // 내 모성이면 MyHomePlanetId도 설정
+                    //if (planet.OwnerId == myPlayerId)
+                    {
+                        //MyHomePlanetId = planet.PlanetId;
+                        //Debug.Log($"My home planet is set to: {MyHomePlanetId}");
+                    }
                 }
             }
         }
 
-        Debug.Log($"Game data initialized with {_planetDataCache.Count} planets");
+        Debug.Log($"Game data initialized with {_planetDataCache.Count} planets and {_homePlanetByPlayer.Count} home planets");
     }
 
     /// <summary>
@@ -239,9 +273,17 @@ public class GameManager : MonoBehaviour
             {
                 foreach (var planet in gameData.Planets)
                 {
-                    visualizationManager.CreatePlanet(planet.PlanetId, new UnityEngine.Vector3(planet.Position.X, planet.Position.Y, 0));
-                    visualizationManager.UpdatePlanetOwnership(planet.PlanetId, planet.OwnerId);
+                    visualizationManager.CreatePlanetWithData(planet.PlanetId, 
+                        new UnityEngine.Vector3(planet.Position.X, planet.Position.Y, 0), 
+                        planet);
                 }
+            }
+
+            // 행성 간 연결선(경로) 그리기
+            if (gameData.Routes != null && gameData.Routes.Length > 0)
+            {
+                visualizationManager.CreatePlanetEdges(gameData.Routes);
+                Debug.Log($"행성 간 연결선 {gameData.Routes.Length}개 그려짐");
             }
 
             Debug.Log("Game visualization initialized");
@@ -270,12 +312,21 @@ public class GameManager : MonoBehaviour
         {
             // 연결이 끊어지면 게임 일시정지
             isGameStarted = false;
+            mapLoadRequested = false; // 다시 로드할 수 있도록 초기화
             Debug.LogWarning("Connection lost during game!");
 
             // UI 업데이트
             if (uiManager != null)
             {
                 // uiManager.ShowConnectionLostMessage(message);
+            }
+        }
+        else if (connected)
+        {
+            if (autoStartGame && !isGameStarted && gameClient != null)
+            {
+                Debug.Log("[GameManager] Server connected - loading map " + selectedMapId);
+                LoadMapLocal(selectedMapId);
             }
         }
     }
@@ -349,10 +400,10 @@ public class GameManager : MonoBehaviour
             CurrentPlanetId = fleetData.PlanetId
         };
 
-        // 시각화 요청 - 함대 생성
+        // 시각화 요청 - 함대 생성 (통일성: planetId 포함)
         if (visualizationManager != null)
         {
-            visualizationManager.CreateFleet(fleetData.FleetId, fleetData.FleetType, fleetData.OwnerId);
+            visualizationManager.CreateFleet(fleetData.FleetId, fleetData.FleetType, fleetData.OwnerId, fleetData.PlanetId);
         }
 
         Debug.Log($"Fleet {fleetData.FleetId} spawned at planet {fleetData.PlanetId} by player {fleetData.OwnerId}");
@@ -409,6 +460,12 @@ public class GameManager : MonoBehaviour
         }
 
         Debug.Log("Initial game state setup completed");
+
+        // 모든 초기화가 완료되었으므로 서버에 준비 완료 신호 전송
+        if (gameClient != null && gameClient.IsConnected)
+        {
+            gameClient.RequestGameClientReady();
+        }
     }
 
     /// <summary>
@@ -591,14 +648,34 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public int GetHomePlanetId(int playerId)
     {
-        foreach (var planetEntry in _planetDataCache)
+        if (_homePlanetByPlayer.TryGetValue(playerId, out int homePlanetId))
         {
-            if (planetEntry.Value.OwnerId == playerId)
-            {
-                return planetEntry.Value.PlanetId;
-            }
+            return homePlanetId;
         }
         return -1; // 찾지 못하면 -1 반환
+    }
+
+    /// <summary>
+    /// 에디터 디버그용: 행성 정보를 캐시에 등록하고, 첫 행성이면 모성으로 설정
+    /// </summary>
+    public void EditorRegisterPlanet(int planetId, int ownerId, UnityEngine.Vector2 position)
+    {
+        // 캐시 업데이트
+        _planetDataCache[planetId] = new PlanetData
+        {
+            PlanetId = planetId,
+            OwnerId = ownerId,
+            Position = new CommonLib.Vector2(position.x, position.y),
+            Minerals = 0,
+            Gas = 0
+        };
+
+        // 내 플레이어의 첫 행성이면 모성 등록
+        if (ownerId == myPlayerId && MyHomePlanetId == -1)
+        {
+            MyHomePlanetId = planetId;
+            Debug.Log($"My home planet registered (editor): {MyHomePlanetId}");
+        }
     }
 
     /// <summary>
@@ -648,28 +725,71 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void RequestMapFromServer()
     {
+        // 기존 동작을 유지: 기본 맵 id=1로 로드합니다.
+        LoadMap(1);
+    }
+
+    /// <summary>
+    /// 로컬 맵 로드 - 서버에서 맵 데이터를 받아옴
+    /// </summary>
+    private bool mapLoadRequested = false;
+    
+    public void LoadMapLocal(int mapId)
+    {
+        // 한 번만 요청하도록 가드
+        if (mapLoadRequested)
+        {
+            Debug.Log($"[GameManager] LoadMapLocal: map load already requested, skipping");
+            return;
+        }
+        
+        Debug.Log($"[GameManager] LoadMapLocal: requesting map {mapId} from server");
+
         if (gameClient == null || !gameClient.IsConnected)
         {
-            Debug.LogWarning("서버에 연결되어 있지 않습니다. 먼저 연결 후 시도하세요.");
+            Debug.LogError("[GameManager] LoadMapLocal: server not connected. Cannot load map.");
             return;
         }
 
-        Debug.Log("F5: 서버에 맵(게임 시작) 요청 흐름 시작");
+        mapLoadRequested = true;
+        // LoadMap 메서드 호출 - 서버에서 맵을 받아옴
+        LoadMap(mapId);
+    }
+
+
+    /// <summary>
+    /// 메인 게임씬에서 사용될 맵 로드 메서드
+    /// - 서버에 연결되어 있으면 룸 생성/입장 흐름을 이용해 맵(GameStartData)을 요청합니다.
+    /// - 서버가 GAME_STARTED 브로드캐스트를 보내면 OnGameStarted로 처리됩니다.
+    /// </summary>
+    public void LoadMap(int mapId)
+    {
+        if (gameClient == null)
+        {
+            Debug.LogError($"❌ [LoadMap] gameClient가 null입니다. 맵을 로드할 수 없습니다.");
+            return;
+        }
+
+        if (!gameClient.IsConnected)
+        {
+            Debug.LogError($"❌ [LoadMap] 서버에 연결되어 있지 않습니다. 먼저 연결 후 시도하세요.");
+            return;
+        }
+
+        Debug.Log($"[LoadMap] 서버에서 맵 {mapId} 요청 중...");
 
         // 룸 입장 성공 시 READY(true) 자동 전송 (한 번만 구독)
         void OnJoined(string roomId, int playerCount)
         {
-            Debug.Log($"룸 입장 성공: {roomId} (플레이어 {playerCount}) → READY 요청");
+            Debug.Log($"✅ 룸 입장 성공: {roomId} (플레이어 {playerCount}) → READY 요청");
             gameClient.JoinRoomSuccess -= OnJoined;
             gameClient.RequestReady(true);
         }
         gameClient.JoinRoomSuccess += OnJoined;
 
-        // 디버그용 기본 값으로 방을 생성하고, 응답에서 자동 입장 수행
-        // UnityGameClient.HandleResponse에서 REQUEST_CREATE_ROOM 성공 시 JoinRoom을 자동 호출합니다.
-        string roomName = "DebugRoom";
-        int mapId = 0; // 서버에 존재하는 맵 인덱스 사용 (필요 시 변경)
-        bool isPrivate = false;
+        // 임시/디버그 목적의 방 이름 (짧은 GUID로 충돌 가능성 낮춤)
+        string roomName = $"MapLoadRoom_{mapId}_{Guid.NewGuid().ToString("N").Substring(0, 6)}";
+        bool isPrivate = true;
         gameClient.CreateRoom(roomName, mapId, isPrivate);
     }
 

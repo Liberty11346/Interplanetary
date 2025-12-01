@@ -11,5 +11,7 @@ namespace CommonLib
         public Vector2 Position;
         public float Minerals;
         public float Gas;
+        public string Name;
+        public int Supply;
     }
 }

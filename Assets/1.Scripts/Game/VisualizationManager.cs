@@ -17,6 +17,10 @@ public class VisualizationManager : MonoBehaviour
     [Header("UI Containers")]
     public Transform planetContainer;        // 행성 오브젝트 컨테이너
     public Transform fleetContainer;         // 함대 오브젝트 컨테이너
+    public Transform edgeContainer;          // 간선 오브젝트 컨테이너
+
+    [Header("Prefabs")]
+    public GameObject linePrefab; // 간선 프리팹 (LineRenderer 컴포넌트 포함)
 
     [Header("Selection")]
     public GameObject fleetSelectionRing;    // 함대 선택 표시 링
@@ -55,13 +59,57 @@ public class VisualizationManager : MonoBehaviour
     /// </summary>
     private void InitializeVisualization()
     {
-        Debug.Log("UnifiedVisualizationManager initialized - 시각화 시스템 준비 완료");
+        Debug.Log("VisualizationManager initialized - 시각화 시스템 준비 완료");
 
         // 선택 링 초기화 (비활성화)
         if (fleetSelectionRing != null)
             fleetSelectionRing.SetActive(false);
         if (planetSelectionRing != null)
             planetSelectionRing.SetActive(false);
+
+        // 안전장치: planetContainer나 planetPrefab이 설정되어 있지 않으면 런타임에서 기본값을 생성합니다.
+        if (planetContainer == null)
+        {
+            var go = new GameObject("PlanetContainer");
+            go.transform.SetParent(this.transform, false);
+            planetContainer = go.transform;
+            Debug.LogWarning("VisualizationManager: planetContainer was null — created runtime container.");
+        }
+
+        if (fleetContainer == null)
+        {
+            var go = new GameObject("FleetContainer");
+            go.transform.SetParent(this.transform, false);
+            fleetContainer = go.transform;
+            Debug.LogWarning("VisualizationManager: fleetContainer was null — created runtime container.");
+        }
+
+        if (edgeContainer == null)
+        {
+            var go = new GameObject("EdgeContainer");
+            go.transform.SetParent(this.transform, false);
+            edgeContainer = go.transform;
+            Debug.LogWarning("VisualizationManager: edgeContainer was null — created runtime container.");
+        }
+
+        if (planetPrefab == null)
+        {
+            // Create a simple placeholder sphere to use as a planet prefab at runtime
+            GameObject placeholder = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            placeholder.name = "PlanetPrefab_Placeholder";
+            // remove collider to avoid unexpected physics interactions
+            var col = placeholder.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            // Add PlanetUIButton so code can interact with it (UI fields will be null but safe)
+            placeholder.AddComponent<PlanetUIButton>();
+
+            // Make the placeholder inactive as a template
+            placeholder.SetActive(false);
+
+            planetPrefab = placeholder;
+            Debug.LogWarning("VisualizationManager: planetPrefab was null — created placeholder primitive prefab at runtime.");
+        }
     }
 
     /// <summary>
@@ -83,7 +131,6 @@ public class VisualizationManager : MonoBehaviour
             if (planetButton != null)
             {
                 planetButton.planetId = planetId;
-                planetButton.Initialize();
                 _planetButtons[planetId] = planetButton;
             }
         }
@@ -92,12 +139,51 @@ public class VisualizationManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 행성 데이터와 함께 생성
+    /// </summary>
+    public void CreatePlanetWithData(int planetId, Vector3 position, PlanetData planetData)
+    {
+        if (planetPrefab != null && planetContainer != null)
+        {
+            // 지정된 위치에 행성 프리팹을 생성
+            GameObject planetObj = Instantiate(planetPrefab, position, Quaternion.identity, planetContainer);
+            _planets[planetId] = planetObj;
+
+            var planetButton = planetObj.GetComponent<PlanetUIButton>();
+            if (planetButton != null)
+            {
+                // PlanetData로부터 모든 정보 설정
+                planetButton.SetPlanetData(planetData);
+                _planetButtons[planetId] = planetButton;
+            }
+        }
+
+        Debug.Log($"Planet {planetId} ({planetData.Name}) created at position {position}");
+    }
+
+    /// <summary>
+    /// 행성 생성 + 소유자 설정 (에디터 디버그용)
+    /// </summary>
+    public void CreatePlanetWithOwner(int planetId, Vector3 position, int ownerId)
+    {
+        CreatePlanet(planetId, position);
+
+        UpdatePlanetOwnership(planetId, ownerId);
+
+        // 게임 매니저 캐시에 반영 및 첫 행성이면 모성 등록
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.EditorRegisterPlanet(planetId, ownerId, new UnityEngine.Vector2(position.x, position.y));
+        }
+    }
+
+    /// <summary>
     /// 함대 생성
     /// </summary>
     /// <param name="fleetId">함대 ID</param>
     /// <param name="fleetType">함대 유형</param>
     /// <param name="ownerId">소유자 ID</param>
-    public void CreateFleet(int fleetId, int fleetType, int ownerId)
+    public void CreateFleet(int fleetId, int fleetType, int ownerId, int planetId)
     {
         if (fleetPrefab != null && fleetContainer != null)
         {
@@ -106,13 +192,12 @@ public class VisualizationManager : MonoBehaviour
             if (fleetButton != null)
             {
                 // 함대 데이터 생성
-                int homePlanetId = GameManager.Instance.GetHomePlanetId(ownerId);
                 FleetSpawnData spawnData = new FleetSpawnData
                 {
                     FleetId = fleetId,
                     FleetType = fleetType,
                     OwnerId = ownerId,
-                    PlanetId = homePlanetId
+                    PlanetId = planetId
                 };
 
                 fleetButton.Initialize(spawnData);
@@ -203,6 +288,64 @@ public class VisualizationManager : MonoBehaviour
         else
         {
             Debug.LogWarning($"Cannot update planet {planetId} ownership: planet not found");
+        }
+    }
+
+    /// <summary>
+    /// 행성 사이의 간선(경로)을 시각화합니다.
+    /// </summary>
+    /// <param name="routes">간선 데이터 배열</param>
+    public void CreatePlanetEdges(MapRouteInfoData[] routes)
+    {
+        if (routes == null || routes.Length == 0)
+        {
+            Debug.Log("No routes to draw.");
+            return;
+        }
+
+        foreach (var route in routes)
+        {
+            if (_planets.TryGetValue(route.planetFromId, out GameObject fromPlanet) &&
+                _planets.TryGetValue(route.planetToId, out GameObject toPlanet))
+            {
+                GameObject lineObj;
+                LineRenderer lineRenderer;
+
+                if (linePrefab != null)
+                {
+                    lineObj = Instantiate(linePrefab, edgeContainer);
+                    lineRenderer = lineObj.GetComponent<LineRenderer>();
+                    if (lineRenderer == null)
+                    {
+                        lineRenderer = lineObj.AddComponent<LineRenderer>();
+                        //Debug.LogWarning($"LinePrefab {linePrefab.name} did not have a LineRenderer. One was added at runtime.");
+                    }
+                }
+                else
+                {
+                    lineObj = new GameObject($"Edge_{route.planetFromId}_to_{route.planetToId}");
+                    lineObj.transform.SetParent(edgeContainer);
+                    lineRenderer = lineObj.AddComponent<LineRenderer>();
+                    //Debug.LogWarning("VisualizationManager: linePrefab was null — created runtime LineRenderer GameObject.");
+                }
+
+                lineRenderer.positionCount = 2;
+                lineRenderer.SetPosition(0, fromPlanet.transform.position);
+                lineRenderer.SetPosition(1, toPlanet.transform.position);
+
+                // 기본 라인 설정 (필요에 따라 조절)
+                lineRenderer.startWidth = 0.1f;
+                lineRenderer.endWidth = 0.1f;
+                lineRenderer.material = new Material(Shader.Find("Sprites/Default")); // 기본 셰이더
+                lineRenderer.startColor = Color.white;
+                lineRenderer.endColor = Color.white;
+
+                Debug.Log($"Created edge from Planet {route.planetFromId} to Planet {route.planetToId}");
+            }
+            else
+            {
+                Debug.LogWarning($"Could not create edge for route {route.id}: one or both planets not found (From: {route.planetFromId}, To: {route.planetToId})");
+            }
         }
     }
 

@@ -34,9 +34,17 @@ public class SimpleConnectionTest : MonoBehaviour
 
         try
         {
-            await ClientServerHandler.Instance.ConnectAsync(serverAddress, serverPort);
+            var handler = ClientServerHandler.Instance;
+            if (handler == null)
+            {
+                lastResult = "연결 오류: ClientServerHandler.Instance is null";
+                Debug.LogError($"[Test] {lastResult}");
+                return;
+            }
 
-            if (ClientServerHandler.Instance.IsConnected)
+            await handler.ConnectAsync(serverAddress, serverPort);
+
+            if (handler.IsConnected)
             {
                 lastResult = "연결 성공!";
                 Debug.Log($"[Test] {lastResult}");
@@ -152,8 +160,15 @@ public class SimpleConnectionTest : MonoBehaviour
         Debug.Log("[Test] Step 1: 서버 연결...");
         try
         {
-            await ClientServerHandler.Instance.ConnectAsync(serverAddress, serverPort);
-            if (!ClientServerHandler.Instance.IsConnected)
+            var handler = ClientServerHandler.Instance;
+            if (handler == null)
+            {
+                Debug.LogError("[Test] ClientServerHandler.Instance is null. 테스트 중단.");
+                return;
+            }
+
+            await handler.ConnectAsync(serverAddress, serverPort);
+            if (!handler.IsConnected)
             {
                 Debug.LogError("[Test] 연결 실패. 테스트 중단.");
                 return;
@@ -232,7 +247,15 @@ public class SimpleConnectionTest : MonoBehaviour
 
     private bool CheckConnection()
     {
-        if (!ClientServerHandler.Instance.IsConnected)
+        var handler = ClientServerHandler.Instance;
+        if (handler == null)
+        {
+            lastResult = "ClientServerHandler.Instance is null.";
+            Debug.LogError($"[Test] {lastResult}");
+            return false;
+        }
+
+        if (!handler.IsConnected)
         {
             lastResult = "서버에 연결되어 있지 않습니다.";
             Debug.LogError($"[Test] {lastResult}");

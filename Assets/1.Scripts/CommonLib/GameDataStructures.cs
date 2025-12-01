@@ -31,10 +31,54 @@ namespace CommonLib
     [Serializable]
     public struct GameStartData
     {
-        public int GameId;
-        public int MapId;
+        public int GameId; // todo : delete this field later
+        public int MapId; // 
+        
         public string PlayersJson;
         public PlanetData[] Planets;
+        public MapRouteInfoData[] Routes; // 추가된 부분
+    }
+
+    [Serializable]
+    public struct MapInfoData
+    {
+        public int id;
+        public string mapName;
+        public int width;
+        public int height;
+    }
+
+    [Serializable]
+    public struct MapPlanetInfoData
+    {
+        public int id;
+        public int mapId;
+        public int planetId;
+        public float positionX;
+        public float positionY;
+        public bool isStartPoint;
+    }
+
+    [Serializable]
+    public struct PlanetInfoData
+    {
+        public int id;
+        public string name;
+        public int type;
+        public int radius;
+        public float resourceRate;
+    }
+
+    // ... (기존 코드)
+
+    // MapRouteInfoData 정의 (서버 CommonLib에서 가져옴)
+    [Serializable]
+    public struct MapRouteInfoData
+    {
+        public int id;
+        public int mapId;
+        public int planetFromId;
+        public int planetToId;
     }
 
     [Serializable]

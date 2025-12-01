@@ -19,25 +19,39 @@ public class VisualizationManagerEditor : Editor
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("디버그 생성기", EditorStyles.boldLabel);
 
-        if (GUILayout.Button("행성 생성"))
+        // 행성 생성 - 플레이어 진영
+        if (GUILayout.Button("플레이어 행성 생성"))
         {
-            // 행성을 랜덤 위치에 생성합니다.
+            int ownerId = 1; // 플레이어
             Vector3 randomPosition = new Vector3(Random.Range(-10, 10), Random.Range(-5, 5), 0);
-            vizManager.CreatePlanet(_planetIdCounter++, randomPosition);
-            Debug.Log("에디터에서 행성을 생성했습니다.");
+            vizManager.CreatePlanetWithOwner(_planetIdCounter++, randomPosition, ownerId);
+            Debug.Log("에디터에서 플레이어 행성을 생성했습니다.");
+        }
+
+        // 행성 생성 - 적 진영
+        if (GUILayout.Button("적 행성 생성"))
+        {
+            int ownerId = 2; // 적
+            Vector3 randomPosition = new Vector3(Random.Range(-10, 10), Random.Range(-5, 5), 0);
+            vizManager.CreatePlanetWithOwner(_planetIdCounter++, randomPosition, ownerId);
+            Debug.Log("에디터에서 적 행성을 생성했습니다.");
         }
 
         if (GUILayout.Button("플레이어 함대 생성"))
         {
             // ownerId 1을 플레이어로 간주합니다.
-            vizManager.CreateFleet(_fleetIdCounter++, 1, 1);
+            int ownerId = 1;
+            int planetId = GameManager.Instance != null ? GameManager.Instance.GetHomePlanetId(ownerId) : 1;
+            vizManager.CreateFleet(_fleetIdCounter++, 1, ownerId, planetId);
             Debug.Log("에디터에서 플레이어 함대를 생성했습니다.");
         }
 
         if (GUILayout.Button("적 함대 생성"))
         {
             // ownerId 2를 적으로 간주합니다.
-            vizManager.CreateFleet(_fleetIdCounter++, 1, 2);
+            int ownerId = 2;
+            int planetId = GameManager.Instance != null ? GameManager.Instance.GetHomePlanetId(ownerId) : 2;
+            vizManager.CreateFleet(_fleetIdCounter++, 1, ownerId, planetId);
             Debug.Log("에디터에서 적 함대를 생성했습니다.");
         }
     }
