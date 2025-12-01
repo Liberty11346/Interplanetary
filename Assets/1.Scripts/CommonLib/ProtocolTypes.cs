@@ -5,7 +5,6 @@ namespace CommonLib
     /// </summary>
     public static class ProtocolType
     {
-
         // 클라이언트 -> 서버 (서버 공통 타입과 정확히 일치)
         public const int REQUEST_LOGIN = 10000;                 // 로그인 요청
         public const int REQUEST_LOGOUT = 10001;                //로그아웃 요청
@@ -44,7 +43,7 @@ namespace CommonLib
         public const int GAME_SET = 20200;
         public const int GAME_STARTED = 20201;                   // 게임 시작 알림
         public const int GAME_STATE = 20202;                     // 게임 상태 전달. 매 틱마다 전송.
-        public const int GAME_ENDED = 20203;                     // 게임 종료 알림
+        public const int GAME_ENDED = 20026;                     // 게임 종료 알림
 
         public const int SUBMIT_COMMAND = 30100;
     }

@@ -37,11 +37,11 @@ public class BottomArea : MonoBehaviour
 
     // RoomManager 이벤트에서 호출됨
     // RoomInfo를 던져주면 그 정보를 토대로 텍스트 메쉬를 업데이트 한다.
-    private void UpdateInfo(RoomInfo roomInfo)
+    public void UpdateInfo(RoomInfo? roomInfo)
     {
         // 맵 이름 업데이트
         string mapName = "";
-        switch( roomInfo.MapID )
+        switch( roomInfo?.MapID )
         {
             case 0:
                 mapName = "TRAINNING SCHOOL";
@@ -62,11 +62,11 @@ public class BottomArea : MonoBehaviour
         _mapName.text = mapName;
 
         // 최대 플레이어 수 업데이트
-        _maxPlayerValue.text = roomInfo.MaxPlayers.ToString() + "명";
+        _maxPlayerValue.text = roomInfo?.MaxPlayers.ToString() + "명";
         
         // 방 상태 업데이트
         string roomState = "";
-        switch( roomInfo.RoomState )
+        switch( roomInfo?.RoomState )
         {
             case RoomState.Open:
                 roomState = "공개";
