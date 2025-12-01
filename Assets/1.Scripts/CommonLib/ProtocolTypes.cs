@@ -82,6 +82,12 @@ namespace CommonLib
         }
     }
 
+    public struct PlayerInfo
+    {
+        public string PlayerName { get; set; } // 플레이어의 이름
+        public bool IsPlayerReady { get; set; } // 플레이어가 준비 상태라면 true
+        public bool IsPlayerOnline { get; set; } // 플레이어가 방에 들어온 상태라면 true, 방에 없는 경우 false (일종의 null 상태 표시 플래그)
+    }
 
     public struct UserInfo
     {

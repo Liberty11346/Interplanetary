@@ -411,7 +411,7 @@ public class RoomManager
                 EmitStatusMessage($"현재 룸 정보 업데이트: {updatedRoom}");
 
                 // WaitingRoom UI를 위한 이벤트 발생
-                OnRoomInfoChanged?.Invoke(updatedRoom);
+                // OnRoomInfoChanged?.Invoke(updatedRoom);
             }
 
             // 캐시된 룸 목록 업데이트
@@ -517,7 +517,7 @@ public class RoomManager
         if (currentUser.HasValue)
         {
             await GamePlayManager.Instance.Initialize(currentUser.Value);
-            OnGameStarting?.Invoke();
+            // OnGameStarting?.Invoke();
         }
         else
         {

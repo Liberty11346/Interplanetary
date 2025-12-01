@@ -16,7 +16,7 @@ public class ChatInputField : MonoBehaviour
         // 엔터 키 입력 시 SendMessage 호출 (TMP_InputField의 onSubmit 이벤트)
         if (inputField != null)
         {
-            inputField.onSubmit.AddListener(OnSubmit);
+            // inputField.onSubmit.AddListener(OnSubmit);
         }
     }
 
@@ -24,7 +24,7 @@ public class ChatInputField : MonoBehaviour
     {
         if (inputField != null)
         {
-            inputField.onSubmit.RemoveListener(OnSubmit);
+            // inputField.onSubmit.RemoveListener(OnSubmit);
         }
     }
 
