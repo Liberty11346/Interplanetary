@@ -340,26 +340,6 @@ public class UnityGameClient : MonoBehaviour
                 HandleGameStarted(protocol);
                 break;
 
-            case ProtocolType.RESOURCES_UPDATED:
-                HandleResourcesUpdated(protocol);
-                break;
-
-            case ProtocolType.FLEET_SPAWNED:
-                HandleFleetSpawned(protocol);
-                break;
-
-            case ProtocolType.FLEET_MOVING:
-                HandleFleetMoving(protocol);
-                break;
-
-            case ProtocolType.COMBAT_ENDED:
-                HandleCombatEnded(protocol);
-                break;
-
-            case ProtocolType.PLANET_CONQUERED:
-                HandlePlanetConquered(protocol);
-                break;
-
             case ProtocolType.GAME_ENDED:
                 HandleGameEnded(protocol);
                 break;

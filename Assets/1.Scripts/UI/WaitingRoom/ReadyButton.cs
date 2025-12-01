@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using CommonLib;
 using TMPro;
 using UnityEngine;
@@ -21,10 +22,10 @@ public class ReadyButton : MonoBehaviour, IPointerClickHandler
     }
 
     // 클릭 시 호출
-    public void OnPointerClick(PointerEventData eventData)
+    public async void OnPointerClick(PointerEventData eventData)
     {
         // 클라이언트 준비 신호를 보낸다.
-        bool isClientReady = waitingRoomManager.ClientReady();
+        bool isClientReady = await waitingRoomManager.ClientReady();
 
         // 현재 상태를 업데이트하여 표시
         textMeshPro.text = isClientReady ? "준비\n해제" : "준비";

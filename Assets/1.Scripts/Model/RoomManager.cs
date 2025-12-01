@@ -42,6 +42,7 @@ public class RoomManager
     public event Action<string> OnRoomJoinFailure;
     public event Action<List<RoomInfo>> OnRoomListUpdated;
     public event Action OnRoomLeft;
+    public event Action OnRoomInfoChanged;
 
     // --- 현재 상태 ---
     private RoomInfo? currentRoom = null;
@@ -346,7 +347,7 @@ public class RoomManager
     }
 
     /// <summary>
-    /// 특정 룸 정보 찾기
+    /// 특정 룸 찾기
     /// </summary>
     public RoomInfo? FindRoom(string roomId)
     {
@@ -417,6 +418,8 @@ public class RoomManager
                 OnRoomListUpdated?.Invoke(cachedRoomList);
             }
         }
+
+        OnRoomInfoChanged?.Invoke();
 
         await Task.CompletedTask;
     }
