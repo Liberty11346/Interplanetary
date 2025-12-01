@@ -11,6 +11,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using ProtocolType = CommonLib.ProtocolType;
 using System.Data;
+using CommonLib.TableData;
 
 /// <summary>
 /// 네트워크 메시지 처리 클라이언트
@@ -310,7 +311,7 @@ public class UnityGameClient : MonoBehaviour
         // 받는다
 
         switch (protocol.Type)
-        {
+        {   
             case ProtocolType.RESPONSE:
                 HandleResponse(protocol);
                 break;
@@ -340,25 +341,25 @@ public class UnityGameClient : MonoBehaviour
                 HandleGameStarted(protocol);
                 break;
 
-            case ProtocolType.RESOURCES_UPDATED:
-                HandleResourcesUpdated(protocol);
-                break;
-
-            case ProtocolType.FLEET_SPAWNED:
-                HandleFleetSpawned(protocol);
-                break;
-
-            case ProtocolType.FLEET_MOVING:
-                HandleFleetMoving(protocol);
-                break;
-
-            case ProtocolType.COMBAT_ENDED:
-                HandleCombatEnded(protocol);
-                break;
-
-            case ProtocolType.PLANET_CONQUERED:
-                HandlePlanetConquered(protocol);
-                break;
+            //case ProtocolType.RESOURCES_UPDATED:
+            //    HandleResourcesUpdated(protocol);
+            //    break;
+            //
+            //case ProtocolType.FLEET_SPAWNED:
+            //    HandleFleetSpawned(protocol);
+            //    break;
+            //
+            //case ProtocolType.FLEET_MOVING:
+            //    HandleFleetMoving(protocol);
+            //    break;
+            //
+            //case ProtocolType.COMBAT_ENDED:
+            //    HandleCombatEnded(protocol);
+            //    break;
+            //
+            //case ProtocolType.PLANET_CONQUERED:
+            //    HandlePlanetConquered(protocol);
+            //    break;
 
             case ProtocolType.GAME_ENDED:
                 HandleGameEnded(protocol);
@@ -461,87 +462,27 @@ public class UnityGameClient : MonoBehaviour
 
     private void HandleGameSet(Protocol protocol)
     {
-        var gameStartData = new GameStartData
-        {
-            GameId = protocol.GetParam<int>("gameId"),
-            MapId = protocol.GetParam<int>("mapId"),
-            PlayersJson = protocol.GetParam<string>("players") ?? "[]"
-        };
+        // MapInfoData (record는 참조 타입이므로 GetObject 사용)
+        var mapInfo = protocol.GetObject<MapInfoData>("mapinfo");
+        LogDebug($"Received MapInfo: {mapInfo.Name} (ID: {mapInfo.id}, P1 Home: {mapInfo.Player1_HomeID}, P2 Home: {mapInfo.Player2_HomeID})");
 
-        // MapInfoData
-        var mapInfo = protocol.GetStruct<MapInfoData>("mapinfo");
-        LogDebug($"Received MapInfo: {mapInfo.mapName} ({mapInfo.width}x{mapInfo.height})");
+        // MapPlanetInfoData[] (서버에서 AddObject로 보냈으므로 GetObject로 받음)
+        var mapPlanetInfos = protocol.GetObject<MapPlanetInfoData[]>("mapplanetinfo") ?? Array.Empty<MapPlanetInfoData>();
 
-        // MapPlanetInfoData[]
-        var mapPlanetInfos = new List<MapPlanetInfoData>();
+        // PlanetInfoData[] (서버에서 AddObject로 보냈으므로 GetObject로 받음)
+        var planetInfos = protocol.GetObject<PlanetInfoData[]>("planets") ?? Array.Empty<PlanetInfoData>();
+
+        // MapRouteInfoData[] (서버에서 AddObject로 보냈으므로 GetObject로 받음)
+        var routes = protocol.GetObject<MapRouteInfoData[]>("routes") ?? Array.Empty<MapRouteInfoData>();
+
+        // Players 데이터 파싱
+        var players = Array.Empty<PlayerData>();
         try
         {
-            string mapPlanetInfoJson = protocol.GetParam<string>("mapplanetinfo");
-            if (!string.IsNullOrEmpty(mapPlanetInfoJson))
-            {
-                var dtos = JsonConvert.DeserializeObject<MapPlanetInfoData[]>(mapPlanetInfoJson);
-                if (dtos != null) mapPlanetInfos.AddRange(dtos);
-            }
-        }
-        catch (Exception ex) { LogDebug($"Failed to parse mapplanetinfo: {ex.Message}"); }
+            string playersJson = protocol.GetParam<string>("players") ?? "[]";
+            players = JsonConvert.DeserializeObject<PlayerData[]>(playersJson) ?? Array.Empty<PlayerData>();
 
-        // PlanetInfoData[]
-        var planetInfos = new List<PlanetInfoData>();
-        try
-        {
-            string planetInfoJson = protocol.GetParam<string>("planets");
-            if (!string.IsNullOrEmpty(planetInfoJson))
-            {
-                var dtos = JsonConvert.DeserializeObject<PlanetInfoData[]>(planetInfoJson);
-                if (dtos != null) planetInfos.AddRange(dtos);
-            }
-        }
-        catch (Exception ex) { LogDebug($"Failed to parse planets info: {ex.Message}"); }
-
-        // MapRouteInfoData[]
-        var routes = new List<MapRouteInfoData>();
-        try
-        {
-            string routesJson = protocol.GetParam<string>("routes");
-            if (!string.IsNullOrEmpty(routesJson))
-            {
-                var dtos = JsonConvert.DeserializeObject<MapRouteInfoData[]>(routesJson);
-                if (dtos != null) routes.AddRange(dtos);
-            }
-        }
-        catch (Exception ex) { LogDebug($"Failed to parse routes: {ex.Message}"); }
-
-        // 데이터 조합하여 GameStartData.Planets 구성
-        // 서버에서 보내주는 구조가 변경되었으므로, 클라이언트에서 PlanetData로 변환하여 사용
-        var planetDataList = new List<PlanetData>();
-        
-        // PlanetInfoData를 딕셔너리로 변환하여 빠른 조회
-        var planetInfoDict = planetInfos.ToDictionary(p => p.id, p => p);
-
-        foreach (var mapPlanet in mapPlanetInfos)
-        {
-            if (planetInfoDict.TryGetValue(mapPlanet.planetId, out var info))
-            {
-                planetDataList.Add(new PlanetData
-                {
-                    PlanetId = mapPlanet.id, // 맵 상의 고유 ID
-                    OwnerId = 0, // 초기 소유자는 0 (중립) 또는 별도 로직 필요
-                    Position = new CommonLib.Vector2(mapPlanet.positionX, mapPlanet.positionY),
-                    Minerals = 0, // 초기 자원
-                    Gas = 0,
-                    Name = info.name,
-                    Supply = 0
-                });
-            }
-        }
-
-        gameStartData.Planets = planetDataList.ToArray();
-        gameStartData.Routes = routes.ToArray();
-
-        // 내 플레이어 ID 찾기
-        try
-        {
-            var players = JsonConvert.DeserializeObject<PlayerData[]>(gameStartData.PlayersJson);
+            // 내 플레이어 ID 찾기
             foreach (var player in players)
             {
                 if (player.SessionId == _sessionId)
@@ -556,7 +497,41 @@ public class UnityGameClient : MonoBehaviour
             LogDebug($"Failed to parse players data: {ex.Message}");
         }
 
-        LogDebug($"Game Set! GameId: {gameStartData.GameId}, MyPlayerId: {_myPlayerId}, Planets: {gameStartData.Planets.Length}");
+        // 데이터 조합하여 GameStartData.Planets 구성
+        // 서버에서 보내주는 구조가 변경되었으므로, 클라이언트에서 PlanetData로 변환하여 사용
+        var planetDataList = new List<PlanetData>();
+
+        // PlanetInfoData를 딕셔너리로 변환하여 빠른 조회
+        var planetInfoDict = planetInfos.ToDictionary(p => p.id, p => p);
+
+        foreach (var mapPlanet in mapPlanetInfos)
+        {
+            if (planetInfoDict.TryGetValue(mapPlanet.planetId, out var info))
+            {
+                planetDataList.Add(new PlanetData
+                {
+                    PlanetId = mapPlanet.id, // 맵 상의 고유 ID
+                    OwnerId = 0, // 초기 소유자는 0 (중립) 또는 별도 로직 필요
+                    Position = new CommonLib.Vector2(mapPlanet.PositionX, mapPlanet.PositionY),
+                    Minerals = info.Mineral, // TableData의 PlanetInfoData 값 사용
+                    Gas = info.Gas,
+                    Name = info.Name,
+                    Supply = info.Supply
+                });
+            }
+        }
+
+        // GameStartData 구성
+        var gameStartData = new GameStartData
+        {
+            MapId = mapInfo.id,
+            MapInfo = mapInfo,
+            Players = players,
+            Planets = planetDataList.ToArray(),
+            Routes = routes
+        };
+
+        LogDebug($"Game Set! MapId: {gameStartData.MapId}, MyPlayerId: {_myPlayerId}, Planets: {gameStartData.Planets.Length}, Players: {gameStartData.Players.Length}");
 
         GameStarted?.Invoke(gameStartData);
     }

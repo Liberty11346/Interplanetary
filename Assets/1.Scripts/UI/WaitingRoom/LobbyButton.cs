@@ -1,19 +1,35 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 public class LobbyButton : MonoBehaviour, IPointerClickHandler
 {
-    private WaitingRoomManager waitingRoomManager;
-
     private void Start()
     {
-        waitingRoomManager = WaitingRoomManager.Instance;
+        // RoomManager의 방 퇴장 이벤트 구독
+        RoomManager.Instance.OnRoomLeft += HandleRoomLeft;
     }
-    
+
+    private void OnDestroy()
+    {
+        // 이벤트 구독 해제
+        if (RoomManager.Instance != null)
+        {
+            RoomManager.Instance.OnRoomLeft -= HandleRoomLeft;
+        }
+    }
+
     // 버튼 클릭 시 호출
     public void OnPointerClick(PointerEventData eventData)
     {
-        // 퇴장한다.
-        waitingRoomManager.ClientLeftRoom();
+        // 방 퇴장 요청
+        RoomManager.Instance.LeaveRoom();
+    }
+
+    // 방 퇴장 완료 시 호출
+    private void HandleRoomLeft()
+    {
+        // 로비 씬으로 이동
+        SceneManager.LoadScene("Lobby");
     }
 }

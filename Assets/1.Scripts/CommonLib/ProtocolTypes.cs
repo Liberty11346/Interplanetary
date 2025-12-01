@@ -1,5 +1,3 @@
-using System;
-
 namespace CommonLib
 {
     /// <summary>
@@ -7,6 +5,7 @@ namespace CommonLib
     /// </summary>
     public static class ProtocolType
     {
+
         // 클라이언트 -> 서버 (서버 공통 타입과 정확히 일치)
         public const int REQUEST_LOGIN = 10000;                 // 로그인 요청
         public const int REQUEST_LOGOUT = 10001;                //로그아웃 요청
@@ -28,6 +27,8 @@ namespace CommonLib
         public const int REQUEST_READY = 10014;                 // 게임 레디
         public const int REQUEST_LEFT_ROOM = 10015;             // 방 퇴장 요청
 
+        public const int REQUEST_GAME_CL_READY = 10200;
+
         // 서버 -> 클라이언트
         public const int RESPONSE = 20000;                      // 전체 공통 응답처리
         public const int BRODCAST_SYSTEM = 20001;               // 시스템 공통 알림
@@ -40,21 +41,17 @@ namespace CommonLib
         public const int ROOM_CLOSED = 20013;                   // 방 삭제 알림
 
         // 게임 브로드캐스트 (인게임 이벤트)
-        public const int GAME_STARTED = 20020;                   // 게임 시작 알림
-        public const int RESOURCES_UPDATED = 20021;              // 자원 갱신 알림
-        public const int FLEET_SPAWNED = 20022;                  // 함대 생성 알림
-        public const int FLEET_MOVING = 20023;                   // 함대 이동 진행 알림
-        public const int COMBAT_ENDED = 20024;                   // 전투 종료 알림
-        public const int PLANET_CONQUERED = 20025;               // 행성 점령 알림
-        public const int GAME_ENDED = 20026;                     // 게임 종료 알림
+        public const int GAME_SET = 20200;
+        public const int GAME_STARTED = 20201;                   // 게임 시작 알림
+        public const int GAME_STATE = 20202;                     // 게임 상태 전달. 매 틱마다 전송.
+        public const int GAME_ENDED = 20203;                     // 게임 종료 알림
 
-        public const int SUBMIT_COMMAND = 3010;
+        public const int SUBMIT_COMMAND = 30100;
     }
 
     /// <summary>
     /// 채팅 메시지 데이터 구조체
     /// </summary>
-    [Serializable]
     public struct ChatMessage
     {
         public string SenderId { get; set; }
@@ -71,7 +68,6 @@ namespace CommonLib
     /// <summary>
     /// 룸 정보 구조체
     /// </summary>
-    [Serializable]
     public struct RoomInfo
     {
         public string RoomId { get; set; }

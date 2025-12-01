@@ -48,7 +48,9 @@ public class LobbyPresenter
 
     private void HandleOnLoginSuccess(UserInfo userinfo)
     {
-        roomManager.Initailize(userinfo);
+        // UserManager가 이미 RoomManager.Initialize()를 호출하므로 중복 호출 제거
+        // roomManager.Initailize(userinfo); // 중복!
+        this.userinfo = userinfo;
     }
 
     private void RoomManager_OnRoomListUpdated(List<RoomInfo> obj)

@@ -21,6 +21,7 @@ public class UILobby : MonoBehaviour
         }
         presenter = new LobbyPresenter();
         presenter.OnRefreshRoomList += RefreshRoomList;
+        presenter.OnResponseJoinRoom += HandleRoomJoinSuccess; // 방 입장 성공 시 WaitingRoom으로 이동
 
         roomList.OnRoomEnterRequested += presenter.HandleRoomEnter;
 
@@ -69,10 +70,20 @@ public class UILobby : MonoBehaviour
         roomList.SetData(roomData);
     }
 
+    /// <summary>
+    /// 방 입장 성공 시 WaitingRoom 씬으로 전환
+    /// </summary>
+    private void HandleRoomJoinSuccess(RoomInfo roomInfo)
+    {
+        Debug.Log($"[UILobby] 방 입장 성공: {roomInfo.RoomName} (ID: {roomInfo.RoomId})");
+        SceneManager.LoadScene("WaitingRoom");
+    }
+
     private void OnDestroy()
     {
         if (presenter != null)
         {
+            presenter.OnResponseJoinRoom -= HandleRoomJoinSuccess;
             presenter.Dispose();
         }
 

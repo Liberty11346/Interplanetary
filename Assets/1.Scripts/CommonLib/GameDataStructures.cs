@@ -1,5 +1,6 @@
 using System;
 using System.Data;
+using CommonLib.TableData;
 
 namespace CommonLib
 {
@@ -28,58 +29,25 @@ namespace CommonLib
         public string Message;
     }
 
+    /// <summary>
+    /// 게임 시작 시 서버로부터 받는 초기 데이터
+    /// </summary>
     [Serializable]
     public struct GameStartData
     {
-        public int GameId; // todo : delete this field later
-        public int MapId; // 
-        
-        public string PlayersJson;
+        public int MapId;
+        public MapInfoData MapInfo;
+        public PlayerData[] Players;
         public PlanetData[] Planets;
-        public MapRouteInfoData[] Routes; // 추가된 부분
+        public MapRouteInfoData[] Routes;
+
+        // 하위 호환성을 위한 속성 (deprecated)
+        [Obsolete("Use Players array instead")]
+        public string PlayersJson => Newtonsoft.Json.JsonConvert.SerializeObject(Players);
     }
 
-    [Serializable]
-    public struct MapInfoData
-    {
-        public int id;
-        public string mapName;
-        public int width;
-        public int height;
-    }
-
-    [Serializable]
-    public struct MapPlanetInfoData
-    {
-        public int id;
-        public int mapId;
-        public int planetId;
-        public float positionX;
-        public float positionY;
-        public bool isStartPoint;
-    }
-
-    [Serializable]
-    public struct PlanetInfoData
-    {
-        public int id;
-        public string name;
-        public int type;
-        public int radius;
-        public float resourceRate;
-    }
-
-    // ... (기존 코드)
-
-    // MapRouteInfoData 정의 (서버 CommonLib에서 가져옴)
-    [Serializable]
-    public struct MapRouteInfoData
-    {
-        public int id;
-        public int mapId;
-        public int planetFromId;
-        public int planetToId;
-    }
+    // MapInfoData, MapPlanetInfoData, PlanetInfoData, MapRouteInfoData는
+    // CommonLib.TableData 네임스페이스에서 record 타입으로 정의됨
 
     [Serializable]
     public struct ResourceUpdate

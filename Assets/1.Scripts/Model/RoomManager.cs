@@ -42,6 +42,8 @@ public class RoomManager
     public event Action<string> OnRoomJoinFailure;
     public event Action<List<RoomInfo>> OnRoomListUpdated;
     public event Action OnRoomLeft;
+    public event Action OnGameStarting; // 게임 시작 알림
+    public event Action<RoomInfo> OnRoomInfoChanged; // 방 정보 변경 알림 (WaitingRoom UI용)
 
     // --- 현재 상태 ---
     private RoomInfo? currentRoom = null;
@@ -82,6 +84,7 @@ public class RoomManager
         RegisterHandler(ProtocolType.USER_LEFT, HandleUserLeft);
         RegisterHandler(ProtocolType.ROOM_INFO_CHANGED, HandleRoomInfoChanged);
         RegisterHandler(ProtocolType.ROOM_CLOSED, HandleRoomClosed);
+        RegisterHandler(ProtocolType.GAME_SET, HandleGameSet);
     }
 
     public void Cleanup()
@@ -407,6 +410,9 @@ public class RoomManager
             {
                 currentRoom = updatedRoom;
                 EmitStatusMessage($"현재 룸 정보 업데이트: {updatedRoom}");
+
+                // WaitingRoom UI를 위한 이벤트 발생
+                OnRoomInfoChanged?.Invoke(updatedRoom);
             }
 
             // 캐시된 룸 목록 업데이트
@@ -494,6 +500,27 @@ public class RoomManager
             var updatedRoom = currentRoom.Value;
             updatedRoom.PlayerCount = newPlayerCount;
             currentRoom = updatedRoom;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 게임 시작 처리 - GamePlayManager 초기화
+    /// </summary>
+    private async Task HandleGameSet(Protocol protocol)
+    {
+        EmitStatusMessage("게임이 곧 시작됩니다. GamePlayManager를 초기화합니다...");
+
+        // GamePlayManager 초기화 (인게임 프로토콜 핸들러 등록)
+        if (currentUser.HasValue)
+        {
+            await GamePlayManager.Instance.Initialize(currentUser.Value);
+            OnGameStarting?.Invoke();
+        }
+        else
+        {
+            EmitError("게임 시작 실패: 사용자 정보가 없습니다");
         }
 
         await Task.CompletedTask;

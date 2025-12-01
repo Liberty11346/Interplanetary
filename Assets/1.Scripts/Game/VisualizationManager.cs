@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using CommonLib;
 using Vector3 = UnityEngine.Vector3;
+using CommonLib.TableData;
 
 /// <summary>
 /// 통합 시각화 매니저 - 게임 내 모든 시각적 요소 관리

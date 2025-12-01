@@ -1471,51 +1471,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &567527787
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 567527788}
-  - component: {fileID: 567527789}
-  m_Layer: 0
-  m_Name: WaitingRoomManger
-  m_TagString: Untagged
-  m_Icon: {fileID: 5132851093641282708, guid: 0000000000000000d000000000000000, type: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &567527788
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 567527787}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -11.79, y: 0.51, z: 0.047756027}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &567527789
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 567527787}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 25eddf3aef8f4ee4b97a1c4066cd68bd, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  enableDebugLogs: 0
 --- !u!1 &670207674
 GameObject:
   m_ObjectHideFlags: 0
@@ -2067,6 +2022,7 @@ GameObject:
   - component: {fileID: 1135396024}
   - component: {fileID: 1135396026}
   - component: {fileID: 1135396025}
+  - component: {fileID: 1135396027}
   m_Layer: 5
   m_Name: BottomArea
   m_TagString: Untagged
@@ -2141,6 +2097,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1135396023}
   m_CullTransparentMesh: 1
+--- !u!114 &1135396027
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1135396023}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a61839ed7362d8447a7bea7eb108b4c0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1191750597
 GameObject:
   m_ObjectHideFlags: 0
@@ -2310,6 +2278,7 @@ GameObject:
   - component: {fileID: 1197507372}
   - component: {fileID: 1197507371}
   - component: {fileID: 1197507370}
+  - component: {fileID: 1197507374}
   m_Layer: 5
   m_Name: Canavas
   m_TagString: Untagged
@@ -2403,6 +2372,19 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &1197507374
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1197507369}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac03fff5a81737c42b355a6fe4f29b5c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Title: {fileID: 0}
 --- !u!1 &1303705550
 GameObject:
   m_ObjectHideFlags: 0
@@ -4582,4 +4564,3 @@ SceneRoots:
   - {fileID: 492297392}
   - {fileID: 1197507373}
   - {fileID: 500543666}
-  - {fileID: 567527788}

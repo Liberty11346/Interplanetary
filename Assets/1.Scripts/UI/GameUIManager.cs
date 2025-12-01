@@ -192,7 +192,7 @@ public class GameUIManager : MonoBehaviour
     {
         if (gameStatusText != null)
         {
-            gameStatusText.text = $"Game Started! (ID: {gameData.GameId})";
+            gameStatusText.text = $"Game Started!";
             gameStatusText.color = Color.green;
         }
 
