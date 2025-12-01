@@ -283,7 +283,15 @@ namespace CommonLib
 
             if (IsShowLog(protocol))
             {
-                Debug.Log($"[NetworkManager] <color=yellow>▲ 클라 => 서버: {ProtocolType.GetName(protocol.Type)}</color>");
+                string paramStr = FormatProtocolParams(protocol, 2);
+                if (!string.IsNullOrEmpty(paramStr))
+                {
+                    Debug.Log($"[NetworkManager] <color=yellow>▲ 클라 => 서버: {ProtocolType.GetName(protocol.Type)}\n  {paramStr}</color>");
+                }
+                else
+                {
+                    Debug.Log($"[NetworkManager] <color=yellow>▲ 클라 => 서버: {ProtocolType.GetName(protocol.Type)}</color>");
+                }
             }
 
             // 요청 전송
@@ -485,7 +493,15 @@ namespace CommonLib
 
                 if (IsShowLog(new Protocol(protocolId)))
                 {
-                    Debug.Log($"[NetworkManager] <color=cyan>▼ 클라 <= 서버: {ProtocolType.GetName(protocolId)} (응답)</color>");
+                    string paramStr = FormatProtocolParams(protocol, 2);
+                    if (!string.IsNullOrEmpty(paramStr))
+                    {
+                        Debug.Log($"[NetworkManager] <color=cyan>▼ 클라 <= 서버: {ProtocolType.GetName(protocolId)} (응답)\n  {paramStr}</color>");
+                    }
+                    else
+                    {
+                        Debug.Log($"[NetworkManager] <color=cyan>▼ 클라 <= 서버: {ProtocolType.GetName(protocolId)} (응답)</color>");
+                    }
                 }
 
                 lock (pendingResponsesLock)
@@ -516,7 +532,15 @@ namespace CommonLib
             {
                 if (IsShowLog(protocol))
                 {
-                    Debug.Log($"[NetworkManager] <color=cyan>▼ 클라 <= 서버: {ProtocolType.GetName(protocol.Type)}</color>");
+                    string paramStr = FormatProtocolParams(protocol, 2);
+                    if (!string.IsNullOrEmpty(paramStr))
+                    {
+                        Debug.Log($"[NetworkManager] <color=cyan>▼ 클라 <= 서버: {ProtocolType.GetName(protocol.Type)}\n  {paramStr}</color>");
+                    }
+                    else
+                    {
+                        Debug.Log($"[NetworkManager] <color=cyan>▼ 클라 <= 서버: {ProtocolType.GetName(protocol.Type)}</color>");
+                    }
                 }
 
                 // Unity 메인 스레드로 마샬링
@@ -638,6 +662,128 @@ namespace CommonLib
             finally
             {
                 Config.IsReconnecting = false;
+            }
+        }
+
+        /// <summary>
+        /// 프로토콜 파라미터를 문자열로 포맷 (상세 출력)
+        /// </summary>
+        private string FormatProtocolParams(Protocol protocol, int indent = 0)
+        {
+            if (protocol == null)
+                return "";
+
+            var parameters = protocol.GetParams();
+            if (parameters == null || parameters.Count == 0)
+                return "";
+
+            var sb = new System.Text.StringBuilder();
+            string indentStr = new string(' ', indent);
+            bool isFirst = true;
+
+            foreach (var param in parameters)
+            {
+                if (!isFirst)
+                    sb.Append("\n" + indentStr);
+                isFirst = false;
+
+                string value = FormatValue(param.Value, indent + 2);
+                sb.Append($"{param.Key} = {value}");
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// 값을 재귀적으로 포맷
+        /// </summary>
+        private string FormatValue(object value, int indent = 0)
+        {
+            if (value == null)
+                return "null";
+
+            string indentStr = new string(' ', indent);
+
+            // 문자열
+            if (value is string str)
+                return $"\"{str}\"";
+
+            // 기본 타입 (숫자, bool 등)
+            if (value.GetType().IsPrimitive || value is decimal)
+                return value.ToString();
+
+            // Newtonsoft.Json.Linq.JArray 처리
+            if (value is Newtonsoft.Json.Linq.JArray jArray)
+            {
+                if (jArray.Count == 0)
+                    return "[]";
+
+                var sb = new System.Text.StringBuilder();
+                sb.Append($"[\n{indentStr}  ");
+                for (int i = 0; i < jArray.Count; i++)
+                {
+                    if (i > 0)
+                        sb.Append($",\n{indentStr}  ");
+                    sb.Append(FormatValue(jArray[i], indent + 2));
+                }
+                sb.Append($"\n{indentStr}]");
+                return sb.ToString();
+            }
+
+            // Newtonsoft.Json.Linq.JObject 처리
+            if (value is Newtonsoft.Json.Linq.JObject jObject)
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.Append($"{{\n{indentStr}  ");
+                bool isFirst = true;
+                foreach (var prop in jObject.Properties())
+                {
+                    if (!isFirst)
+                        sb.Append($",\n{indentStr}  ");
+                    isFirst = false;
+                    sb.Append($"{prop.Name} = {FormatValue(prop.Value, indent + 2)}");
+                }
+                sb.Append($"\n{indentStr}}}");
+                return sb.ToString();
+            }
+
+            // 배열
+            if (value is System.Array array)
+            {
+                if (array.Length == 0)
+                    return "[]";
+
+                var sb = new System.Text.StringBuilder();
+                sb.Append($"[\n{indentStr}  ");
+                for (int i = 0; i < array.Length; i++)
+                {
+                    if (i > 0)
+                        sb.Append($",\n{indentStr}  ");
+                    sb.Append(FormatValue(array.GetValue(i), indent + 2));
+                }
+                sb.Append($"\n{indentStr}]");
+                return sb.ToString();
+            }
+
+            // 일반 객체 (JSON 직렬화)
+            try
+            {
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(value, Newtonsoft.Json.Formatting.Indented);
+                // 들여쓰기 조정
+                if (indent > 0)
+                {
+                    var lines = json.Split('\n');
+                    for (int i = 1; i < lines.Length; i++)
+                    {
+                        lines[i] = indentStr + lines[i];
+                    }
+                    return string.Join("\n", lines);
+                }
+                return json;
+            }
+            catch
+            {
+                return value.ToString();
             }
         }
 

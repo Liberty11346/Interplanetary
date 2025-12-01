@@ -65,6 +65,16 @@ public class WaitingRoomPresenter
         IsReady = !IsReady;
         _roomManager.RequestReadyAsync(IsReady);
     }
+
+    public void Dispose()
+    {
+        if (_roomManager != null)
+        {
+            _roomManager.OnRoomLeft -= HandleOnRoomLeft;
+            _roomManager.OnWaittingRoomInfoChanged -= HandleOnRoomInfoChanged;
+            _roomManager.OnGameStarting -= HandleOnGameStarting;
+        }
+    }
 }
 
 
@@ -137,18 +147,35 @@ public class UIWaitingRoom : MonoBehaviour
     {
         presenter = new WaitingRoomPresenter();
         presenter.OnRoomInfoChanged += UpdateUI;
+        presenter.OnRoomLeft += HandleRoomLeft;
         readyBtn.onClick.AddListener(presenter.HandleOnReady);
 
         UpdateUI(presenter.GetRoomInfo());
+    }
+
+    private void HandleRoomLeft()
+    {
+        // 방 퇴장 성공 시 로비로 이동
+        SceneManager.LoadScene("Lobby");
     }
 
     public void UpdateUI(WaitingRoomData data)
     {
         RoomInfo room = data.roomInfo;
         ConvertedRoomInfo convertedRoomInfo = new ConvertedRoomInfo(room);
-        
+
         _topArea.UpdateUI(convertedRoomInfo);
         _bottomArea.UpdateUI(convertedRoomInfo);
         _playerArea.UpdateUI(data.playerData);
+    }
+
+    private void OnDestroy()
+    {
+        if (presenter != null)
+        {
+            presenter.OnRoomInfoChanged -= UpdateUI;
+            presenter.OnRoomLeft -= HandleRoomLeft;
+            presenter.Dispose();
+        }
     }
 }

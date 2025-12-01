@@ -807,15 +807,7 @@ public class GamePlayManager
     /// </summary>
     public async Task<bool> JoinRoom(string roomId, int slot, int userId = 0)
     {
-        ValidateNetworkConnection();
-
-        var protocol = new Protocol(ProtocolType.REQUEST_JOIN_ROOM)
-            .AddParam("userId", userId)
-            .AddParam("roomId", roomId)
-            .AddParam("slot", slot);
-
-        var response = await SafeSendAsync(protocol, $"방 입장 ({roomId}, 슬롯: {slot})");
-        return response.isSuccess;
+         return await RoomManager.Instance.RequestJoinRoomAsync(roomId, slot);
     }
 
     /// <summary>

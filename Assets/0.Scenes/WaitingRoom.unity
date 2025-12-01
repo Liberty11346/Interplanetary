@@ -2420,6 +2420,7 @@ MonoBehaviour:
   _topArea: {fileID: 933958468}
   _bottomArea: {fileID: 1135396027}
   _playerArea: {fileID: 1498634167}
+  readyBtn: {fileID: 1883452137}
 --- !u!1 &1303705550
 GameObject:
   m_ObjectHideFlags: 0
