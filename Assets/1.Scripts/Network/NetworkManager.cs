@@ -356,6 +356,12 @@ namespace CommonLib
                 if (!Config.IsConnected || stream == null)
                     return;
 
+                if (data.Length >= 4)
+                {
+                    int length = BitConverter.ToInt32(data, 0);
+                    string hex = BitConverter.ToString(data, 0, 4);
+                    Debug.Log($"[NetworkManager] 전송 데이터: TotalBytes={data.Length}, HeaderLength={length}, HeaderHex={hex}");
+                }
                 await stream.WriteAsync(data, 0, data.Length).ConfigureAwait(false);
                 await stream.FlushAsync().ConfigureAwait(false);
             }
@@ -439,7 +445,7 @@ namespace CommonLib
 
                     // 3. 역직렬화 및 처리
                     try
-                    {
+                    {   
                         Protocol protocol = Protocol.Deserialize(messageBuffer);
                         if (protocol != null)
                         {

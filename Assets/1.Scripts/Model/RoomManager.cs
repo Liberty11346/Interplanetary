@@ -591,22 +591,14 @@ public class RoomManager
     }
 
     /// <summary>
-    /// 게임 시작 처리 - GamePlayManager 초기화
+      /// 게임 시작 처리 - 씬 전환 이벤트 발생
     /// </summary>
     private async Task HandleGameSet(Protocol protocol)
     {
-        EmitStatusMessage("게임이 곧 시작됩니다. GamePlayManager를 초기화합니다...");
+        EmitStatusMessage("게임이 곧 시작됩니다. GameScene으로 전환합니다...");
 
-        // GamePlayManager 초기화 (인게임 프로토콜 핸들러 등록)
-        if (currentUser.HasValue)
-        {
-            await GamePlayManager.Instance.Initialize(currentUser.Value, _sessionId);
-            OnGameStarting?.Invoke();
-        }
-        else
-        {
-            EmitError("게임 시작 실패: 사용자 정보가 없습니다");
-        }
+        // 게임 시작 이벤트 발생 (UIWaitingRoom에서 씬 전환 처리)
+        OnGameStarting?.Invoke();
 
         await Task.CompletedTask;
     }

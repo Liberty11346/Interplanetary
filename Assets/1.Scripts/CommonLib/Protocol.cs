@@ -305,7 +305,16 @@ namespace CommonLib
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Protocol] JSON 파싱 오류: {ex.Message}\nJSON: {jsonData}\n크기: messageSize={messageSize}, jsonLength={jsonLength}, dataLength={data.Length}");
+                    // [FIX] HEARTBEAT_ACK (20003) Non-JSON payload handling
+                    if (type == 20003) 
+                    {
+                        string hexPayload = BitConverter.ToString(data, 18, jsonLength);
+                        UnityEngine.Debug.Log($"[Protocol] HEARTBEAT_ACK Raw Payload (Hex): {hexPayload}");
+                        protocol.AddParam("raw_payload", jsonData);
+                        return protocol;
+                    }
+
+                    UnityEngine.Debug.LogError($"[Protocol] JSON 파싱 오류: {ex.Message}\nProtocol Type: {type}\nJSON: {jsonData}\n크기: messageSize={messageSize}, jsonLength={jsonLength}, dataLength={data.Length}");
                     throw;
                 }
             }

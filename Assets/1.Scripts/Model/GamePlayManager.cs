@@ -304,11 +304,8 @@ public class GamePlayManager
         // 게임 시작 데이터 저장 (승리 조건 판정에 필요)
         _gameStartData = gameStartData;
 
-        // GameStarted 이벤트 발생
+        // GameStarted 이벤트 발생 (GameSceneInitializer에서 구독하여 초기화 완료 후 REQUEST_GAME_CL_READY 전송)
         GameStarted?.Invoke(gameStartData);
-
-        // 서버에게 클라이언트 준비 완료 알림
-        await RequestGameClientReady();
 
         await Task.CompletedTask;
     }
