@@ -130,7 +130,7 @@ public class RoomManager
                 // 응답 파라미터: roomCount, page, roomList
                 int roomCount = response.GetParam<int>("roomCount");
                 int responsePage = response.GetParam<int>("page");
-                var roomListData = response.GetParam<RoomInfo[]>("roomList");
+                var roomListData = response.GetObject<RoomInfo[]>("roomList");
                 UpdateCashedRooms(roomListData);
                 return true;
             }
@@ -160,7 +160,7 @@ public class RoomManager
             if (response.isSuccess)
             {
                 // 응답 파라미터: roomList
-                var roomListData = response.GetParam<RoomInfo[]>("roomList");
+                var roomListData = response.GetObject<RoomInfo[]>("roomList");
                 UpdateCashedRooms(roomListData);
                 return true;
             }
@@ -198,7 +198,7 @@ public class RoomManager
                 // 응답 파라미터: roomId, slot
                 string roomId = response.GetParam<string>("roomId");
                 int slot = response.GetParam<int>("slot");
-                RoomInfo[] rooms = response.GetParam<RoomInfo[]>("roomList");
+                RoomInfo[] rooms = response.GetObject<RoomInfo[]>("roomList");
 
                 UpdateCashedRooms(rooms);
                 OnRoomListUpdated?.Invoke(rooms.ToList());
@@ -451,13 +451,18 @@ public class RoomManager
     /// </summary>
     private RoomInfo ParseRoomInfo(Dictionary<string, object> data)
     {
+        int roomStateValue = GetIntValue(data, "roomState");
+
+        // DEBUG: RoomState 값 확인
+        Debug.Log($"[RoomManager] ParseRoomInfo - roomState raw value: {roomStateValue}, as RoomState: {(CommonLib.RoomState)roomStateValue}");
+
         return new RoomInfo
         {
             RoomId = GetStringValue(data, "roomId"),
             RoomName = GetStringValue(data, "roomName"),
             PlayerCount = GetIntValue(data, "playerCount"),
             MaxPlayers = GetIntValue(data, "maxPlayers"),
-            RoomState = (CommonLib.RoomState)GetIntValue(data, "roomState"),
+            RoomState = (CommonLib.RoomState)roomStateValue,
             MapID = GetIntValue(data, "mapId")
         };
     }

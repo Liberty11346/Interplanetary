@@ -116,12 +116,15 @@ namespace CommonLib
         public int PlayerCount { get; set; }
         public int MaxPlayers { get; set; }
         public string RoomName { get; set; }
+
+        [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
         public RoomState RoomState { get; set; }
+
         public int MapID { get; set; }
 
         public override string ToString()
         {
-            return $"Room {RoomId}: {PlayerCount}/{MaxPlayers}";
+            return $"Room {RoomId}: {PlayerCount}/{MaxPlayers}, State: {RoomState}";
         }
     }
 

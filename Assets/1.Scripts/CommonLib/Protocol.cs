@@ -126,6 +126,11 @@ namespace CommonLib
                 {
                     try
                     {
+                        // Enum을 정수로 직렬화하는 설정
+                        var settings = new JsonSerializerSettings
+                        {
+                            Converters = new List<JsonConverter> { new Newtonsoft.Json.Converters.StringEnumConverter() }
+                        };
                         return jToken.ToObject<T>();
                     }
                     catch
@@ -138,11 +143,32 @@ namespace CommonLib
                 {
                     try
                     {
-                        return JsonConvert.DeserializeObject<T>(jsonString);
+                        // DEBUG: JSON 문자열 출력
+                        if (typeof(T).Name == "RoomInfo")
+                        {
+                            UnityEngine.Debug.Log($"[Protocol] GetStruct<RoomInfo> JSON: {jsonString}");
+                        }
+
+                        // Enum을 정수로 역직렬화하는 설정
+                        var settings = new JsonSerializerSettings
+                        {
+                            // Enum을 정수로 처리
+                            Converters = new List<JsonConverter>()
+                        };
+                        var result = JsonConvert.DeserializeObject<T>(jsonString, settings);
+
+                        // DEBUG: 결과 출력
+                        if (typeof(T).Name == "RoomInfo")
+                        {
+                            UnityEngine.Debug.Log($"[Protocol] GetStruct<RoomInfo> Result: {result}");
+                        }
+
+                        return result;
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // 역직렬화 실패 시 기본값 반환
+                        // 역직렬화 실패 시 로그 출력
+                        UnityEngine.Debug.LogWarning($"[Protocol] GetStruct<{typeof(T).Name}> deserialization failed for key '{key}': {ex.Message}\nJSON: {jsonString}");
                     }
                 }
 
