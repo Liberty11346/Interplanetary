@@ -24,6 +24,9 @@ public class LobbyButton : MonoBehaviour, IPointerClickHandler
     {
         // 방 퇴장 요청
         RoomManager.Instance.LeaveRoom();
+
+        // 방 퇴장 (임시)
+        SceneManager.LoadScene("Lobby");
     }
 
     // 방 퇴장 완료 시 호출

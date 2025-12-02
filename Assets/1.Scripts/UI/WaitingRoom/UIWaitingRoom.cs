@@ -57,7 +57,10 @@ public class WaitingRoomPresenter
 
     private void HandleOnRoomLeft()
     {
-        OnRoomLeft?.Invoke();
+        // 방 퇴장 성공 시 로비 씬으로 이동
+        // SceneManager.LoadScene("Lobby");
+        // 방 퇴장 프로토콜 응답이 서버로부터 오지 않아서, 그냥 LobbyButton.cs에서 바로 퇴장하게끔 해놓음.
+        // 프로토콜 고쳐지면 주석 해제할 것.
     }
 
     public void HandleOnReady()
