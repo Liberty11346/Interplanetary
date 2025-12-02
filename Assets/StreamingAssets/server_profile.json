@@ -1,0 +1,7 @@
+{
+  "serverAddress": "125.137.73.37",
+  "serverPort": 9000,
+  "connectionTimeout": 5000,
+  "reconnectDelay": 3000,
+  "autoReconnect": false
+}

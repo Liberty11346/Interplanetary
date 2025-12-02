@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Net;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -39,9 +37,6 @@ namespace CommonLib
         {
             OnInitialize();
         }
-
-        private string serverAddress = "127.0.0.1";
-        private int serverPort = 9000;
 
         // --- NetworkManager 인스턴스 ---
         private NetworkManager networkManager =  new NetworkManager();
@@ -95,9 +90,13 @@ namespace CommonLib
             }
         }
 
+        /// <summary>
+        /// ServerProfile 설정을 사용하여 서버에 연결
+        /// </summary>
         public async Task ConnectAsync()
         {
-            await ConnectAsync(serverAddress, serverPort);
+            var profile = ServerProfile.Instance.GetConfig();
+            await ConnectAsync(profile.serverAddress, profile.serverPort);
         }
 
         /// <summary>
