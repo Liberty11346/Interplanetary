@@ -126,8 +126,8 @@ public class UserManager
                 isLoggedIn = true;
                 EmitStatusMessage($"로그인 성공: {currentUser.Value.UserName}");
 
-                // 로그인 성공 후 RoomManager 초기화
-                await RoomManager.Instance.Initailize(currentUser.Value);
+                // 로그인 성공 후 RoomManager 초기화 (sessionToken 전달)
+                await RoomManager.Instance.Initailize(currentUser.Value, sessionToken);
 
                 OnLoginSuccess?.Invoke(currentUser.Value);
                 return true;

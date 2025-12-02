@@ -52,6 +52,7 @@ public class RoomManager
     private List<RoomInfo> cachedRoomList = new List<RoomInfo>();
     private bool isInRoom = false;
     private UserInfo? currentUser = null;
+    private string _sessionId = "";
     private (RoomInfo, WaittingRoomUser[]) currentWaittingRoomInfo;
 
     // --- 속성들 ---
@@ -62,9 +63,10 @@ public class RoomManager
     public (RoomInfo, WaittingRoomUser[]) CachedCurrRoom => currentWaittingRoomInfo;
 
     // --- 초기화 및 생명주기 ---
-    public async Task Initailize(UserInfo user)
+    public async Task Initailize(UserInfo user, string sessionId = "")
     {
         currentUser = user;
+        _sessionId = sessionId;
 
         networkClient = ClientServerHandler.Instance;
         if (networkClient == null)
