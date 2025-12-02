@@ -256,7 +256,7 @@ public class RoomManager
                 // 응답 파라미터: roomInfo, chatChannelID
                 string chatChannelID = response.GetParam<string>("chatChannelID");
                 RoomInfo roominfo = response.GetStruct<RoomInfo>("roomInfo");
-                WaittingRoomUser[] users = response.GetParam<WaittingRoomUser[]>("users");
+                WaittingRoomUser[] users = response.GetObject<WaittingRoomUser[]>("users");
 
                 currentRoom = roominfo;
                 isInRoom = true;
@@ -593,8 +593,8 @@ public class RoomManager
         // GamePlayManager 초기화 (인게임 프로토콜 핸들러 등록)
         if (currentUser.HasValue)
         {
-            await GamePlayManager.Instance.Initialize(currentUser.Value);
-            // OnGameStarting?.Invoke();
+            await GamePlayManager.Instance.Initialize(currentUser.Value, _sessionId);
+            OnGameStarting?.Invoke();
         }
         else
         {

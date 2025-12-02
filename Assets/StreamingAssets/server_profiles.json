@@ -1,0 +1,21 @@
+{
+  "profiles": [
+    {
+      "profileName": "Default",
+      "serverAddress": "127.0.0.1",
+      "serverPort": 9000,
+      "connectionTimeout": 5000,
+      "reconnectDelay": 3000,
+      "autoReconnect": false
+    },
+    {
+      "profileName": "Production",
+      "serverAddress": "125.137.73.37",
+      "serverPort": 9000,
+      "connectionTimeout": 5000,
+      "reconnectDelay": 3000,
+      "autoReconnect": false
+    }
+  ],
+  "activeProfileName": "Default"
+}

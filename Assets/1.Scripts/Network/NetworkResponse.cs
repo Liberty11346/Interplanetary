@@ -105,6 +105,14 @@ namespace CommonLib
         }
 
         /// <summary>
+        /// 객체/클래스 가져오기 (Protocol의 GetObject 위임)
+        /// </summary>
+        public T GetObject<T>(string key) where T : class
+        {
+            return receivedProtocol.GetObject<T>(key);
+        }
+
+        /// <summary>
         /// 패킷 객체로 변환
         /// </summary>
         public T GetPacket<T>() where T : IPacketResponse<NetworkResponse>, new()

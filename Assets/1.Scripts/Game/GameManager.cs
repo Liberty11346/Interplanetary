@@ -23,8 +23,8 @@ public class GameManager : MonoBehaviour
     public int selectedMapId = 1; // 로드할 맵 번호
 
     [Header("Managers")]
-    public UnityGameClient gameClient;      // 서버 통신 담당
-    public GameUIManager uiManager;         // UI 관리 담당
+    private GamePlayManager gamePlayManager;    // 게임 플레이 및 서버 통신 담당
+    public GameUIManager uiManager;             // UI 관리 담당
     public VisualizationManager visualizationManager;  // 시각화 담당
 
     [Header("Game State")]
@@ -64,7 +64,6 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         InitializeGame();
-        // 자동 시작은 OnConnectionChanged에서 처리
     }
 
     private void Update()
@@ -83,32 +82,31 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void InitializeGame()
     {
-        // 컴포넌트 자동 찾기
-        if (gameClient == null)
-            gameClient = FindFirstObjectByType<UnityGameClient>();
+        // GamePlayManager 싱글톤 참조
+        gamePlayManager = GamePlayManager.Instance;
 
+        // 컴포넌트 자동 찾기
         if (uiManager == null)
             uiManager = FindFirstObjectByType<GameUIManager>();
 
         if (visualizationManager == null)
             visualizationManager = FindFirstObjectByType<VisualizationManager>();
 
-        Debug.Log($"[GameManager] gameClient: {(gameClient != null ? "찾음" : "없음")}, uiManager: {(uiManager != null ? "찾음" : "없음")}, visualizationManager: {(visualizationManager != null ? "찾음" : "없음")}");
+        Debug.Log($"[GameManager] gamePlayManager: {(gamePlayManager != null ? "찾음" : "없음")}, uiManager: {(uiManager != null ? "찾음" : "없음")}, visualizationManager: {(visualizationManager != null ? "찾음" : "없음")}");
 
-        // 게임 클라이언트 이벤트 구독
-        if (gameClient != null)
+        // GamePlayManager 이벤트 구독
+        if (gamePlayManager != null)
         {
             // 게임 상태 이벤트
-            gameClient.GameStarted += OnGameStarted;
-            gameClient.GameEnded += OnGameEnded;
-            gameClient.ConnectionChanged += OnConnectionChanged;
-            gameClient.ErrorOccurred += OnErrorOccurred;
+            gamePlayManager.GameStarted += OnGameStarted;
+            gamePlayManager.GameEnded += OnGameEnded;
+            gamePlayManager.OnError += OnErrorOccurred;
 
             // 게임 데이터 이벤트
-            gameClient.ResourcesUpdated += OnResourcesUpdated;
-            gameClient.FleetSpawned += OnFleetSpawned;
-            gameClient.FleetMoving += OnFleetMoving;
-            gameClient.ChatReceived += OnChatReceived;
+            gamePlayManager.ResourcesUpdated += OnResourcesUpdated;
+            gamePlayManager.FleetSpawned += OnFleetSpawned;
+            gamePlayManager.FleetMoving += OnFleetMoving;
+            gamePlayManager.ChatMessageReceived += OnChatReceived;
         }
 
         Debug.Log("GameManager initialized - 이벤트 핸들러 설정 완료");
@@ -161,9 +159,9 @@ public class GameManager : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.F2))
         {
-            if (gameClient != null && gameClient.IsConnected)
+            if (gamePlayManager != null)
             {
-                gameClient.SendChatMessage("Debug message from GameManager");
+                gamePlayManager.SendChat("Debug message from GameManager");
             }
         }
 
@@ -189,7 +187,7 @@ public class GameManager : MonoBehaviour
     {
         isGameStarted = true;
         mapLoadRequested = false; // 다음 게임을 위해 초기화
-        myPlayerId = gameClient != null ? gameClient.MyPlayerId : -1;
+        myPlayerId = gamePlayManager != null ? gamePlayManager.MyPlayerId : -1;
         if (myPlayerId == -1 && !string.IsNullOrEmpty(gameData.PlayersJson))
         {
             try
@@ -303,33 +301,6 @@ public class GameManager : MonoBehaviour
         HandleGameEnd(gameEndData);
     }
 
-    /// <summary>
-    /// 연결 상태 변경 이벤트 처리
-    /// </summary>
-    private void OnConnectionChanged(bool connected, string message)
-    {
-        if (!connected && isGameStarted)
-        {
-            // 연결이 끊어지면 게임 일시정지
-            isGameStarted = false;
-            mapLoadRequested = false; // 다시 로드할 수 있도록 초기화
-            Debug.LogWarning("Connection lost during game!");
-
-            // UI 업데이트
-            if (uiManager != null)
-            {
-                // uiManager.ShowConnectionLostMessage(message);
-            }
-        }
-        else if (connected)
-        {
-            if (autoStartGame && !isGameStarted && gameClient != null)
-            {
-                Debug.Log("[GameManager] Server connected - loading map " + selectedMapId);
-                LoadMapLocal(selectedMapId);
-            }
-        }
-    }
 
     /// <summary>
     /// 에러 발생 이벤트 처리
@@ -462,9 +433,9 @@ public class GameManager : MonoBehaviour
         Debug.Log("Initial game state setup completed");
 
         // 모든 초기화가 완료되었으므로 서버에 준비 완료 신호 전송
-        if (gameClient != null && gameClient.IsConnected)
+        if (gamePlayManager != null)
         {
-            gameClient.RequestGameClientReady();
+            gamePlayManager.RequestGameClientReady();
         }
     }
 
@@ -486,9 +457,9 @@ public class GameManager : MonoBehaviour
         }
 
         // 종료 메시지 전송
-        if (gameClient != null && gameClient.IsConnected)
+        if (gamePlayManager != null)
         {
-            gameClient.SendChatMessage($"GG! {resultMessage}");
+            gamePlayManager.SendChatMessage($"GG! {resultMessage}");
         }
     }
 
@@ -517,7 +488,7 @@ public class GameManager : MonoBehaviour
         Debug.Log($"My Player ID: {myPlayerId}");
         Debug.Log($"Current Tick: {_currentTick}");
         Debug.Log($"Game Time: {gameTime:F1}s");
-        Debug.Log($"Connected: {(gameClient != null ? gameClient.IsConnected : false)}");
+        Debug.Log($"GamePlayManager: {(gamePlayManager != null ? "Available" : "Not Available")}");
         Debug.Log($"Planets: {_planetDataCache.Count}, Fleets: {_fleetDataCache.Count}");
         Debug.Log($"==================");
     }
@@ -569,13 +540,13 @@ public class GameManager : MonoBehaviour
     public void StartGame()
     {
         // 임시
-        if (gameClient != null && gameClient.IsConnected)
+        if (gamePlayManager != null)
         {
             Debug.Log("Requesting game start...");
         }
         else
         {
-            Debug.LogWarning("Cannot start game: not connected to server");
+            Debug.LogWarning("Cannot start game: GamePlayManager not available");
         }
     }
 
@@ -589,9 +560,9 @@ public class GameManager : MonoBehaviour
             isGameStarted = false;
             Debug.Log("Game ended by user");
 
-            if (gameClient != null)
+            if (gamePlayManager != null)
             {
-                gameClient.LeaveRoom();
+                gamePlayManager.LeaveRoom();
             }
         }
     }
@@ -612,10 +583,8 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void ReconnectToServer()
     {
-        if (gameClient != null)
-        {
-            StartCoroutine(gameClient.ConnectToServer());
-        }
+        // 연결은 ClientServerHandler에서 관리
+        Debug.Log("Reconnection is handled by ClientServerHandler");
     }
 
     /// <summary>
@@ -683,10 +652,10 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void CommandFleetMovement(int fleetId, int targetPlanetId)
     {
-        if (gameClient != null && gameClient.IsConnected && isGameStarted)
+        if (gamePlayManager != null && isGameStarted)
         {
             // 서버에 함대 이동 요청
-            gameClient.RequestMoveFleet(fleetId, targetPlanetId);
+            gamePlayManager.RequestMoveFleet(fleetId, targetPlanetId);
             Debug.Log($"Requesting fleet {fleetId} to move to planet {targetPlanetId}");
         }
     }
@@ -697,7 +666,7 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void CommandFleetSpawn(int fleetType)
     {
-        if (gameClient != null && gameClient.IsConnected && isGameStarted)
+        if (gamePlayManager != null && isGameStarted)
         {
             int planetId = MyHomePlanetId;
             if (planetId == -1)
@@ -706,7 +675,7 @@ public class GameManager : MonoBehaviour
                 return;
             }
 
-            gameClient.RequestProduceFleet(planetId, fleetType);
+            gamePlayManager.RequestProduceFleet(planetId, fleetType);
             Debug.Log($"Requesting fleet spawn at home planet {planetId} of type {fleetType}");
 
             // 실제 함대 생성 및 검증은 서버에서 처리
@@ -742,12 +711,12 @@ public class GameManager : MonoBehaviour
             Debug.Log($"[GameManager] LoadMapLocal: map load already requested, skipping");
             return;
         }
-        
+
         Debug.Log($"[GameManager] LoadMapLocal: requesting map {mapId} from server");
 
-        if (gameClient == null || !gameClient.IsConnected)
+        if (gamePlayManager == null)
         {
-            Debug.LogError("[GameManager] LoadMapLocal: server not connected. Cannot load map.");
+            Debug.LogError("[GameManager] LoadMapLocal: GamePlayManager not available. Cannot load map.");
             return;
         }
 
@@ -762,35 +731,31 @@ public class GameManager : MonoBehaviour
     /// - 서버에 연결되어 있으면 룸 생성/입장 흐름을 이용해 맵(GameStartData)을 요청합니다.
     /// - 서버가 GAME_STARTED 브로드캐스트를 보내면 OnGameStarted로 처리됩니다.
     /// </summary>
-    public void LoadMap(int mapId)
+    public async void LoadMap(int mapId)
     {
-        if (gameClient == null)
+        if (gamePlayManager == null)
         {
-            Debug.LogError($"❌ [LoadMap] gameClient가 null입니다. 맵을 로드할 수 없습니다.");
-            return;
-        }
-
-        if (!gameClient.IsConnected)
-        {
-            Debug.LogError($"❌ [LoadMap] 서버에 연결되어 있지 않습니다. 먼저 연결 후 시도하세요.");
+            Debug.LogError($"❌ [LoadMap] GamePlayManager가 null입니다. 맵을 로드할 수 없습니다.");
             return;
         }
 
         Debug.Log($"[LoadMap] 서버에서 맵 {mapId} 요청 중...");
 
-        // 룸 입장 성공 시 READY(true) 자동 전송 (한 번만 구독)
-        void OnJoined(string roomId, int playerCount)
-        {
-            Debug.Log($"✅ 룸 입장 성공: {roomId} (플레이어 {playerCount}) → READY 요청");
-            gameClient.JoinRoomSuccess -= OnJoined;
-            gameClient.RequestReady(true);
-        }
-        gameClient.JoinRoomSuccess += OnJoined;
-
         // 임시/디버그 목적의 방 이름 (짧은 GUID로 충돌 가능성 낮춤)
         string roomName = $"MapLoadRoom_{mapId}_{Guid.NewGuid().ToString("N").Substring(0, 6)}";
         bool isPrivate = true;
-        gameClient.CreateRoom(roomName, mapId, isPrivate);
+
+        // 방 생성
+        bool created = await gamePlayManager.CreateRoom(roomName, mapId, isPrivate);
+        if (created)
+        {
+            Debug.Log($"✅ 룸 생성 성공: {roomName} → READY 요청");
+            await gamePlayManager.RequestReady(true);
+        }
+        else
+        {
+            Debug.LogError($"❌ [LoadMap] 방 생성 실패");
+        }
     }
 
     /// <summary>
@@ -799,20 +764,16 @@ public class GameManager : MonoBehaviour
     private void OnDestroy()
     {
         // 이벤트 구독 해제
-        if (gameClient != null)
+        if (gamePlayManager != null)
         {
-            gameClient.GameStarted -= OnGameStarted;
-            gameClient.GameEnded -= OnGameEnded;
-            gameClient.ConnectionChanged -= OnConnectionChanged;
-            gameClient.ErrorOccurred -= OnErrorOccurred;
+            gamePlayManager.GameStarted -= OnGameStarted;
+            gamePlayManager.GameEnded -= OnGameEnded;
+            gamePlayManager.OnError -= OnErrorOccurred;
 
-
-
-
-            gameClient.ResourcesUpdated -= OnResourcesUpdated;
-            gameClient.FleetSpawned -= OnFleetSpawned;
-            gameClient.FleetMoving -= OnFleetMoving;
-            gameClient.ChatReceived -= OnChatReceived;
+            gamePlayManager.ResourcesUpdated -= OnResourcesUpdated;
+            gamePlayManager.FleetSpawned -= OnFleetSpawned;
+            gamePlayManager.FleetMoving -= OnFleetMoving;
+            gamePlayManager.ChatMessageReceived -= OnChatReceived;
         }
     }
 }

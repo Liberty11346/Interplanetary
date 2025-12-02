@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEditor;
 using System.IO;
+using System.Collections.Generic;
+using System.Linq;
 
 [CustomEditor(typeof(ServerProfile))]
 public class ServerProfileEditor : Editor
@@ -9,16 +11,23 @@ public class ServerProfileEditor : Editor
     private ServerProfileData editingData;
     private bool hasUnsavedChanges = false;
 
+    // 프로필 관리 UI 상태
+    private int selectedProfileIndex = 0;
+    private string newProfileName = "";
+    private bool showNewProfileInput = false;
+
     private void OnEnable()
     {
         profile = (ServerProfile)target;
         LoadCurrentConfig();
+        UpdateSelectedProfileIndex();
     }
 
     private void LoadCurrentConfig()
     {
         editingData = new ServerProfileData
         {
+            profileName = profile.activeProfileName,
             serverAddress = profile.serverAddress,
             serverPort = profile.serverPort,
             connectionTimeout = profile.connectionTimeout,
@@ -28,13 +37,23 @@ public class ServerProfileEditor : Editor
         hasUnsavedChanges = false;
     }
 
+    private void UpdateSelectedProfileIndex()
+    {
+        var profileNames = profile.GetProfileNames();
+        selectedProfileIndex = Mathf.Max(0, profileNames.IndexOf(profile.activeProfileName));
+    }
+
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
 
         EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Server Profile Editor", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox("이 설정은 JSON 파일에 저장됩니다. Inspector에서 편집하고 'Save to JSON' 버튼을 눌러 저장하세요.", MessageType.Info);
+        EditorGUILayout.LabelField("Server Profile Manager", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("여러 서버 프로필을 관리할 수 있습니다. 프로필을 선택하고 설정을 편집한 후 저장하세요.", MessageType.Info);
+        EditorGUILayout.Space();
+
+        // Profile Selection
+        DrawProfileSelector();
         EditorGUILayout.Space();
 
         // Server Settings
@@ -84,7 +103,7 @@ public class ServerProfileEditor : Editor
         SerializedProperty useConfigFileProp = serializedObject.FindProperty("useConfigFile");
         EditorGUILayout.PropertyField(useConfigFileProp, new GUIContent("Use Config File", "외부 설정 파일 사용"));
 
-        string configPath = Path.Combine(Application.streamingAssetsPath, "server_profile.json");
+        string configPath = Path.Combine(Application.streamingAssetsPath, "server_profiles.json");
         bool fileExists = File.Exists(configPath);
 
         EditorGUILayout.BeginHorizontal();
@@ -152,10 +171,23 @@ public class ServerProfileEditor : Editor
         if (Application.isPlaying)
         {
             EditorGUILayout.LabelField("Runtime Actions", EditorStyles.boldLabel);
-            if (GUILayout.Button("🔌 Test Connection", GUILayout.Height(30)))
+
+            EditorGUILayout.BeginHorizontal();
+
+            GUI.backgroundColor = Color.cyan;
+            if (GUILayout.Button("🔌 Reconnect to Server", GUILayout.Height(30)))
             {
-                TestConnection();
+                profile.ReconnectToServer();
             }
+
+            GUI.backgroundColor = Color.yellow;
+            if (GUILayout.Button("📊 Show Connection Info", GUILayout.Height(30)))
+            {
+                ShowConnectionInfo();
+            }
+
+            GUI.backgroundColor = Color.white;
+            EditorGUILayout.EndHorizontal();
         }
 
         serializedObject.ApplyModifiedProperties();
@@ -197,6 +229,7 @@ public class ServerProfileEditor : Editor
 
     private void ApplyToInspector()
     {
+        profile.activeProfileName = editingData.profileName;
         profile.serverAddress = editingData.serverAddress;
         profile.serverPort = editingData.serverPort;
         profile.connectionTimeout = editingData.connectionTimeout;
@@ -207,9 +240,160 @@ public class ServerProfileEditor : Editor
         hasUnsavedChanges = false;
     }
 
-    private void TestConnection()
+    private void ShowConnectionInfo()
     {
-        Debug.Log($"[ServerProfile] Testing connection to {editingData.serverAddress}:{editingData.serverPort}");
-        // Connection test logic can be added here
+        var handler = CommonLib.ClientServerHandler.Instance;
+        if (handler != null)
+        {
+            string status = handler.IsConnected ? "연결됨 ✓" : "연결 안됨 ✗";
+            string message = $"현재 프로필: {profile.activeProfileName}\n" +
+                           $"서버 주소: {profile.serverAddress}:{profile.serverPort}\n" +
+                           $"연결 상태: {status}";
+
+            EditorUtility.DisplayDialog("Connection Info", message, "OK");
+            Debug.Log($"[ServerProfile] {message}");
+        }
+        else
+        {
+            EditorUtility.DisplayDialog("Connection Info", "ClientServerHandler를 찾을 수 없습니다.", "OK");
+        }
+    }
+
+    private void DrawProfileSelector()
+    {
+        EditorGUILayout.LabelField("Profile Selection", EditorStyles.boldLabel);
+
+        var profileNames = profile.GetProfileNames();
+        if (profileNames == null || profileNames.Count == 0)
+        {
+            EditorGUILayout.HelpBox("프로필이 없습니다. 'Create Default Profiles' 버튼을 눌러주세요.", MessageType.Warning);
+            if (GUILayout.Button("Create Default Profiles"))
+            {
+                profile.CreateDefaultConfigFile();
+                UpdateSelectedProfileIndex();
+                LoadCurrentConfig();
+            }
+            return;
+        }
+
+        EditorGUILayout.BeginHorizontal();
+
+        // Profile dropdown
+        EditorGUI.BeginChangeCheck();
+        int newIndex = EditorGUILayout.Popup("Active Profile", selectedProfileIndex, profileNames.ToArray());
+        if (EditorGUI.EndChangeCheck())
+        {
+            if (hasUnsavedChanges)
+            {
+                if (!EditorUtility.DisplayDialog("Confirm", "저장되지 않은 변경사항이 있습니다. 계속하시겠습니까?", "Yes", "No"))
+                {
+                    return;
+                }
+            }
+
+            selectedProfileIndex = newIndex;
+            string selectedProfileName = profileNames[selectedProfileIndex];
+
+            // 런타임 중이면 재연결 여부 확인
+            bool reconnect = false;
+            if (Application.isPlaying)
+            {
+                reconnect = EditorUtility.DisplayDialog("재연결 확인",
+                    $"프로필을 '{selectedProfileName}'(으)로 전환합니다.\n서버에 재연결하시겠습니까?",
+                    "재연결", "나중에");
+            }
+
+            profile.LoadProfile(selectedProfileName, reconnect);
+            LoadCurrentConfig();
+            UpdateSelectedProfileIndex();
+        }
+
+        // Delete button
+        GUI.backgroundColor = Color.red;
+        if (GUILayout.Button("✕", GUILayout.Width(25)))
+        {
+            string profileToDelete = profileNames[selectedProfileIndex];
+            if (EditorUtility.DisplayDialog("Confirm Delete",
+                $"프로필 '{profileToDelete}'을(를) 삭제하시겠습니까?", "Delete", "Cancel"))
+            {
+                if (profile.DeleteProfile(profileToDelete))
+                {
+                    profile.SaveAllProfiles();
+                    UpdateSelectedProfileIndex();
+                    LoadCurrentConfig();
+                    EditorUtility.DisplayDialog("Success", "프로필이 삭제되었습니다.", "OK");
+                }
+            }
+        }
+        GUI.backgroundColor = Color.white;
+
+        EditorGUILayout.EndHorizontal();
+
+        // New Profile Section
+        EditorGUILayout.Space(5);
+
+        if (!showNewProfileInput)
+        {
+            GUI.backgroundColor = Color.cyan;
+            if (GUILayout.Button("➕ New Profile"))
+            {
+                showNewProfileInput = true;
+                newProfileName = "New Profile";
+            }
+            GUI.backgroundColor = Color.white;
+        }
+        else
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Create New Profile", EditorStyles.boldLabel);
+
+            newProfileName = EditorGUILayout.TextField("Profile Name", newProfileName);
+
+            EditorGUILayout.BeginHorizontal();
+
+            GUI.backgroundColor = Color.green;
+            if (GUILayout.Button("Create"))
+            {
+                if (string.IsNullOrWhiteSpace(newProfileName))
+                {
+                    EditorUtility.DisplayDialog("Error", "프로필 이름을 입력하세요.", "OK");
+                }
+                else if (profileNames.Contains(newProfileName))
+                {
+                    EditorUtility.DisplayDialog("Error", "이미 존재하는 프로필 이름입니다.", "OK");
+                }
+                else
+                {
+                    var newProfile = new ServerProfileData
+                    {
+                        profileName = newProfileName,
+                        serverAddress = "127.0.0.1",
+                        serverPort = 9000,
+                        connectionTimeout = 5000,
+                        reconnectDelay = 3000,
+                        autoReconnect = false
+                    };
+
+                    profile.AddProfile(newProfile);
+                    profile.SaveAllProfiles();
+                    profile.LoadProfile(newProfileName);
+                    LoadCurrentConfig();
+                    UpdateSelectedProfileIndex();
+
+                    showNewProfileInput = false;
+                    EditorUtility.DisplayDialog("Success", $"프로필 '{newProfileName}'이(가) 생성되었습니다.", "OK");
+                }
+            }
+
+            GUI.backgroundColor = Color.gray;
+            if (GUILayout.Button("Cancel"))
+            {
+                showNewProfileInput = false;
+            }
+            GUI.backgroundColor = Color.white;
+
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.EndVertical();
+        }
     }
 }

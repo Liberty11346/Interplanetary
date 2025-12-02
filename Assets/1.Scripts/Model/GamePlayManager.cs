@@ -56,14 +56,22 @@ public class GamePlayManager
     private UserInfo? currentUser = null;
     private GameState _previousGameState = null;
     private long _currentTick = 0;
+    private string _sessionId = "";
+    private int _myPlayerId = -1;
 
     // 게임 시작 데이터 (승리 조건 판정에 필요)
     private GameStartData? _gameStartData = null;
 
     // --- 초기화 및 생명주기 ---
-    public async Task Initialize(UserInfo user)
+    public async Task Initialize(UserInfo user, string sessionId = "")
     {
         currentUser = user;
+        _sessionId = sessionId;
+
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            Debug.Log($"[GamePlayManager] SessionId 설정: {sessionId}");
+        }
 
         networkClient = ClientServerHandler.Instance;
         if (networkClient == null)
@@ -236,6 +244,20 @@ public class GamePlayManager
             string playersJson = protocol.GetParam<string>("players") ?? "[]";
             players = Newtonsoft.Json.JsonConvert.DeserializeObject<PlayerData[]>(playersJson) ?? Array.Empty<PlayerData>();
             Debug.Log($"[GamePlayManager] 플레이어 수: {players.Length}");
+
+            // 내 플레이어 ID 찾기 (SessionId로 매칭)
+            if (!string.IsNullOrEmpty(_sessionId))
+            {
+                foreach (var player in players)
+                {
+                    if (player.SessionId == _sessionId)
+                    {
+                        _myPlayerId = player.PlayerId;
+                        Debug.Log($"[GamePlayManager] 내 플레이어 ID 설정: {_myPlayerId} (SessionId: {_sessionId})");
+                        break;
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -856,6 +878,16 @@ public class GamePlayManager
     /// 현재 게임 틱
     /// </summary>
     public long CurrentTick => _currentTick;
+
+    /// <summary>
+    /// 세션 ID
+    /// </summary>
+    public string SessionId => _sessionId;
+
+    /// <summary>
+    /// 내 플레이어 ID
+    /// </summary>
+    public int MyPlayerId => _myPlayerId;
 
     /// <summary>
     /// 게임 시작 데이터 (읽기 전용)
