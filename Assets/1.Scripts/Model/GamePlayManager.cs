@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using CommonLib;
-using UnityEditor.U2D.Aseprite;
 using CommonLib.TableData;
 using System.Linq;
 using UnityEngine.InputSystem;
