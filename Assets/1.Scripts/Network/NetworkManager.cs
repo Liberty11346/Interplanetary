@@ -68,6 +68,15 @@ namespace CommonLib
         /// </summary>
         public async Task ConnectAsync(string ip, int port)
         {
+#if UNITY_EDITOR
+            // 에디터 모드(플레이 중이 아닐 때)에서는 연결하지 않음
+            if (!UnityEngine.Application.isPlaying)
+            {
+                Debug.LogWarning("[NetworkManager] 에디터 모드에서는 서버 연결이 불가능합니다. 플레이 모드를 사용하세요.");
+                return;
+            }
+#endif
+
             if (Config.IsConnected)
                 return;
 

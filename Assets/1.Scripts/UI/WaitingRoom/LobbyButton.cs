@@ -22,11 +22,16 @@ public class LobbyButton : MonoBehaviour, IPointerClickHandler
     // 버튼 클릭 시 호출
     public void OnPointerClick(PointerEventData eventData)
     {
-        // 방 퇴장 요청
-        RoomManager.Instance.LeaveRoom();
-
-        // 방 퇴장 (임시)
-        SceneManager.LoadScene("Lobby");
+        // 방에 참가 중인 경우에만 방 퇴장 요청
+        if (RoomManager.Instance.IsInRoom)
+        {
+            RoomManager.Instance.LeaveRoom();
+        }
+        else
+        {
+            // 방에 참가하지 않은 경우 바로 로비로 이동
+            SceneManager.LoadScene("Lobby");
+        }
     }
 
     // 방 퇴장 완료 시 호출
