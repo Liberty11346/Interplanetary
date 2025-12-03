@@ -46,6 +46,8 @@ public class RoomManager
     public event Action OnRoomLeft;
     public event Action OnGameStarting; // 게임 시작 알림
     public event Action<RoomInfo, WaittingRoomUser[]> OnWaittingRoomInfoChanged; // 방 정보 변경 알림 (WaitingRoom UI용)
+    public event Action<int, string, int> OnUserJoinedRoom; // 유저 입장 알림 (userId, userName, playerCount)
+    public event Action<int, string, int> OnUserLeftRoom; // 유저 퇴장 알림 (userId, userName, playerCount)
 
     // --- 현재 상태 ---
     private RoomInfo? currentRoom = null;
@@ -543,21 +545,19 @@ public class RoomManager
         if (isInRoom && currentRoom.HasValue)
         {
             // 서버는 userName이 아닌 userId를 브로드캐스트합니다.
-            string userIdStr = protocol.GetParam<string>("userId");
-            if (string.IsNullOrEmpty(userIdStr))
-            {
-                // 혹시 int로 올 경우 대비
-                int uid = protocol.GetParam<int>("userId");
-                userIdStr = uid.ToString();
-            }
+            int userId = protocol.GetParam<int>("userId");
+            string userName = protocol.GetParam<string>("userName") ?? "";
             int newPlayerCount = protocol.GetParam<int>("playerCount");
 
-            EmitStatusMessage($"유저 입장: {userIdStr} (총 {newPlayerCount}명)");
+            EmitStatusMessage($"유저 입장: {userName} (ID: {userId}, 총 {newPlayerCount}명)");
 
             // 현재 룸 정보 업데이트
             var updatedRoom = currentRoom.Value;
             updatedRoom.PlayerCount = newPlayerCount;
             currentRoom = updatedRoom;
+
+            // 이벤트 발생
+            OnUserJoinedRoom?.Invoke(userId, userName, newPlayerCount);
         }
 
         await Task.CompletedTask;
@@ -571,20 +571,19 @@ public class RoomManager
         if (isInRoom && currentRoom.HasValue)
         {
             // 서버는 userName이 아닌 userId를 브로드캐스트합니다.
-            string userIdStr = protocol.GetParam<string>("userId");
-            if (string.IsNullOrEmpty(userIdStr))
-            {
-                int uid = protocol.GetParam<int>("userId");
-                userIdStr = uid.ToString();
-            }
+            int userId = protocol.GetParam<int>("userId");
+            string userName = protocol.GetParam<string>("userName") ?? "";
             int newPlayerCount = protocol.GetParam<int>("playerCount");
 
-            EmitStatusMessage($"유저 퇴장: {userIdStr} (총 {newPlayerCount}명)");
+            EmitStatusMessage($"유저 퇴장: {userName} (ID: {userId}, 총 {newPlayerCount}명)");
 
             // 현재 룸 정보 업데이트
             var updatedRoom = currentRoom.Value;
             updatedRoom.PlayerCount = newPlayerCount;
             currentRoom = updatedRoom;
+
+            // 이벤트 발생
+            OnUserLeftRoom?.Invoke(userId, userName, newPlayerCount);
         }
 
         await Task.CompletedTask;
