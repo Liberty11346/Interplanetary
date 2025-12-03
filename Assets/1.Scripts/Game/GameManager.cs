@@ -43,11 +43,16 @@ public class GameManager : MonoBehaviour
     private long _currentTick = 0;
     private float _tickTimer = 0f;
 
-    // 게임 데이터 캐싱
-    private Dictionary<int, PlanetData> _planetDataCache = new Dictionary<int, PlanetData>();
-    private Dictionary<int, FleetData> _fleetDataCache = new Dictionary<int, FleetData>();
-    private Dictionary<int, ResourceData> _playerResourceCache = new Dictionary<int, ResourceData>();
-    private Dictionary<int, int> _homePlanetByPlayer = new Dictionary<int, int>(); // 플레이어별 모성 ID 저장
+    // === 정적 데이터 (GameSet에서 1회 수신) ===
+    private Dictionary<int, PlanetStaticData> _planetStaticData = new Dictionary<int, PlanetStaticData>();
+
+    // === 동적 데이터 (GameState에서 매 틱 수신) ===
+    private GamePlayManager.GameState _currentState;
+    private GamePlayManager.GameState _previousState;
+
+    // === 엔티티 추적 ===
+    private HashSet<long> _spawnedFleetIds = new HashSet<long>();
+    private Dictionary<int, int> _planetOwners = new Dictionary<int, int>(); // planetId -> ownerId
 
     private void Awake()
     {
@@ -97,19 +102,21 @@ public class GameManager : MonoBehaviour
         // GamePlayManager 이벤트 구독
         if (gamePlayManager != null)
         {
-            // 게임 상태 이벤트
+            // ⭐ State-Sync: GameState 수신 이벤트 (핵심)
+            gamePlayManager.GameStateReceived += OnGameStateReceived;
+
+            // 게임 시작/종료 이벤트
             gamePlayManager.GameStarted += OnGameStarted;
             gamePlayManager.GameEnded += OnGameEnded;
-            gamePlayManager.OnError += OnErrorOccurred;
 
-            // 게임 데이터 이벤트
-            gamePlayManager.ResourcesUpdated += OnResourcesUpdated;
+            // 중요 이벤트 (효과, 사운드용)
             gamePlayManager.FleetSpawned += OnFleetSpawned;
-            gamePlayManager.FleetMoving += OnFleetMoving;
-            gamePlayManager.ChatMessageReceived += OnChatReceived;
+
+            // 에러 처리
+            gamePlayManager.OnError += OnErrorOccurred;
         }
 
-        Debug.Log("GameManager initialized - 이벤트 핸들러 설정 완료");
+        Debug.Log("GameManager initialized - State-Sync 모델 활성화");
     }
 
     /// <summary>
@@ -220,40 +227,41 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 게임 데이터 초기화 - 게임 시작 시 받은 데이터로 캐시 초기화
+    /// 게임 데이터 초기화 - 정적 맵 데이터만 초기화 (GameSet)
     /// </summary>
     private void InitializeGameData(GameStartData gameData)
     {
-        // 캐시 초기화
-        _planetDataCache.Clear();
-        _fleetDataCache.Clear();
-        _playerResourceCache.Clear();
-        _homePlanetByPlayer.Clear();
-        MyHomePlanetId = -1; // 리셋
+        // 정적 데이터 초기화
+        _planetStaticData.Clear();
+        _spawnedFleetIds.Clear();
+        _planetOwners.Clear();
+        _currentState = null;
+        _previousState = null;
+        MyHomePlanetId = -1;
 
-        // 게임 데이터가 있으면 캐싱
+        // 행성 정적 데이터 저장 (위치는 변하지 않음)
         if (gameData.Planets != null)
         {
             foreach (var planet in gameData.Planets)
             {
-                _planetDataCache[planet.PlanetId] = planet;
-
-                // IsHomePlanet 플래그로 모성 저장
-                //if (planet.IsHomePlanet)
+                _planetStaticData[planet.PlanetId] = new PlanetStaticData
                 {
-                    //_homePlanetByPlayer[planet.OwnerId] = planet.PlanetId;
-                    
-                    // 내 모성이면 MyHomePlanetId도 설정
-                    //if (planet.OwnerId == myPlayerId)
-                    {
-                        //MyHomePlanetId = planet.PlanetId;
-                        //Debug.Log($"My home planet is set to: {MyHomePlanetId}");
-                    }
+                    PlanetId = planet.PlanetId,
+                    Position = new Vector2(planet.Position.X, planet.Position.Y),
+                    MaxMinerals = (int)planet.Minerals,
+                    MaxGas = (int)planet.Gas
+                };
+
+                // 내 모성 찾기 (첫 번째로 소유한 행성)
+                if (planet.OwnerId == myPlayerId && MyHomePlanetId == -1)
+                {
+                    MyHomePlanetId = planet.PlanetId;
+                    Debug.Log($"My home planet: {MyHomePlanetId}");
                 }
             }
         }
 
-        Debug.Log($"Game data initialized with {_planetDataCache.Count} planets and {_homePlanetByPlayer.Count} home planets");
+        Debug.Log($"Static map data initialized with {_planetStaticData.Count} planets");
     }
 
     /// <summary>
@@ -324,80 +332,34 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// 자원 업데이트 이벤트 처리 - 자원 데이터 캐싱 및 시각화 요청
+    /// ⭐ State-Sync 모델에서는 OnGameStateReceived에서 처리하므로 사용 안 함
     /// </summary>
     private void OnResourcesUpdated(ResourceUpdate resourceData)
     {
-        // 자원 데이터 캐싱
-        if (!_playerResourceCache.ContainsKey(resourceData.PlayerId))
-        {
-            _playerResourceCache[resourceData.PlayerId] = new ResourceData();
-        }
-
-        // 자원 데이터 업데이트
-        var playerResources = _playerResourceCache[resourceData.PlayerId];
-        playerResources.Minerals = (int)resourceData.Minerals;
-        playerResources.Gas = (int)resourceData.Gas;
-        playerResources.CurrentSupply = resourceData.CurrentSupply;
-        playerResources.MaxSupply = resourceData.MaxSupply;
-
-        // UI 업데이트 (내 자원인 경우)
-        if (resourceData.PlayerId == myPlayerId && uiManager != null)
-        {
-            // uiManager.UpdateResourceDisplay(playerResources);
-        }
-
-        // 시각화 업데이트 - 행성 소유권 변경
-        if (visualizationManager != null)
-        {
-            // ResourceUpdate에는 PlanetId와 OwnerId가 없으므로 플레이어 ID만 전달
-            // 실제 게임에서는 플레이어 ID와 행성 ID 매핑이 필요함
-            visualizationManager.UpdatePlanetOwnership(resourceData.PlayerId, resourceData.PlayerId);
-        }
-
-        Debug.Log($"Resources updated for player {resourceData.PlayerId}: Minerals={resourceData.Minerals}, Gas={resourceData.Gas}");
+        // State-Sync 모델에서는 사용하지 않음 (레거시 코드)
+        Debug.Log($"[Legacy] Resources updated for player {resourceData.PlayerId}: Minerals={resourceData.Minerals}, Gas={resourceData.Gas}");
     }
 
     /// <summary>
-    /// 함대 생성 이벤트 처리 - 함대 데이터 캐싱 및 시각화 요청
+    /// 함대 생성 이벤트 처리 - 효과 및 사운드용
+    /// ⭐ State-Sync 모델에서는 함대 생성/파괴는 OnGameStateReceived에서 처리
+    /// 이 이벤트는 생성 효과/사운드만 담당
     /// </summary>
     private void OnFleetSpawned(FleetSpawnData fleetData)
     {
-        // 함대 데이터 캐싱
-        _fleetDataCache[fleetData.FleetId] = new FleetData
-        {
-            FleetId = fleetData.FleetId,
-            OwnerId = fleetData.OwnerId,
-            FleetType = fleetData.FleetType,
-            CurrentPlanetId = fleetData.PlanetId
-        };
+        // 생성 효과/사운드 재생
+        Debug.Log($"[Effect] Fleet {fleetData.FleetId} spawned at planet {fleetData.PlanetId} by player {fleetData.OwnerId}");
 
-        // 시각화 요청 - 함대 생성 (통일성: planetId 포함)
-        if (visualizationManager != null)
-        {
-            visualizationManager.CreateFleet(fleetData.FleetId, fleetData.FleetType, fleetData.OwnerId, fleetData.PlanetId);
-        }
-
-        Debug.Log($"Fleet {fleetData.FleetId} spawned at planet {fleetData.PlanetId} by player {fleetData.OwnerId}");
+        // TODO: PlayFleetSpawnEffect(fleetData.PlanetId);
     }
 
     /// <summary>
-    /// 함대 이동 이벤트 처리 - 함대 데이터 업데이트 및 시각화 요청
+    /// 함대 이동 이벤트 처리 - 레거시 이벤트 (State-Sync에서는 사용 안 함)
     /// </summary>
     private void OnFleetMoving(FleetMoveData moveData)
     {
-        // 함대 데이터 업데이트
-        if (_fleetDataCache.TryGetValue(moveData.FleetId, out FleetData fleetData))
-        {
-            fleetData.CurrentPlanetId = moveData.ToPlanetId;
-        }
-
-        // 시각화 요청 - 함대 이동 애니메이션
-        if (visualizationManager != null)
-        {
-            visualizationManager.AnimateFleetMovement(moveData.FleetId, moveData.FromPlanetId, moveData.ToPlanetId);
-        }
-
-        Debug.Log($"Fleet {moveData.FleetId} moving from planet {moveData.FromPlanetId} to {moveData.ToPlanetId}");
+        // State-Sync 모델에서는 사용하지 않음
+        Debug.Log($"[Legacy] Fleet {moveData.FleetId} moving from planet {moveData.FromPlanetId} to {moveData.ToPlanetId}");
     }
 
     /// <summary>
@@ -413,6 +375,275 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"Chat from {chatMessage.SenderId}: {chatMessage.Message}");
     }
+
+    #endregion
+
+    #region State-Sync 핸들러
+
+    /// <summary>
+    /// ⭐ GameState 수신 핸들러 (매 틱마다 호출 - 50ms)
+    /// </summary>
+    private void OnGameStateReceived(GamePlayManager.GameState newState, long tick)
+    {
+        if (newState == null) return;
+
+        _previousState = _currentState;
+        _currentState = newState;
+        _currentTick = tick;
+
+        // 순서 중요: 함대 → 행성 → 자원
+        SyncFleets(tick);
+        SyncPlanets(tick);
+        SyncResources(tick);
+        CheckGameState(tick);
+    }
+
+    /// <summary>
+    /// 함대 동기화: 생성, 이동, 파괴 감지
+    /// </summary>
+    private void SyncFleets(long tick)
+    {
+        var currentFleetIds = new HashSet<long>();
+
+        foreach (var player in _currentState.players)
+        {
+            if (player.fleets == null) continue;
+
+            foreach (var fleetInfo in player.fleets)
+            {
+                currentFleetIds.Add(fleetInfo.fleetId);
+
+                // === 새로 생성된 함대 ===
+                if (!_spawnedFleetIds.Contains(fleetInfo.fleetId))
+                {
+                    int spawnPlanetId = FindClosestPlanet(new Vector2(fleetInfo.position.X, fleetInfo.position.Y));
+
+                    if (visualizationManager != null)
+                    {
+                        visualizationManager.CreateFleet(
+                            (int)fleetInfo.fleetId,
+                            fleetInfo.fleetType,
+                            fleetInfo.ownerId,
+                            spawnPlanetId
+                        );
+                    }
+
+                    _spawnedFleetIds.Add(fleetInfo.fleetId);
+                    Debug.Log($"Fleet {fleetInfo.fleetId} spawned at planet {spawnPlanetId}");
+                }
+                // === 기존 함대 업데이트 ===
+                else
+                {
+                    if (visualizationManager != null)
+                    {
+                        // 위치 업데이트 - Fleet GameObject의 Transform 직접 업데이트
+                        UnityEngine.Vector3 targetPos = new UnityEngine.Vector3(fleetInfo.position.X, fleetInfo.position.Y, 0);
+
+                        // ⭐ TODO: VisualizationManager에 SetFleetPosition 또는 GetFleet 메서드 추가 필요
+                        // 현재는 VisualizationManager에 해당 API가 없으므로 로그만 출력
+                        // visualizationManager.UpdateFleetPosition((int)fleetInfo.fleetId, targetPos);
+
+                        // HP 바 업데이트
+                        // ⭐ TODO: VisualizationManager에 UpdateFleetHealth 메서드 추가 필요
+                        // float hpRatio = fleetInfo.maxHP > 0 ? fleetInfo.HP / fleetInfo.maxHP : 1f;
+                        // visualizationManager.UpdateFleetHealth((int)fleetInfo.fleetId, hpRatio);
+                    }
+
+                    // 상태 변화 감지
+                    var prevFleet = FindPreviousFleet(fleetInfo.fleetId);
+                    if (prevFleet != null)
+                    {
+                        // Idle → Battle
+                        if (prevFleet.state == 0 && fleetInfo.state == 1)
+                        {
+                            PlayBattleStartEffect(new Vector2(fleetInfo.position.X, fleetInfo.position.Y));
+                            Debug.Log($"Fleet {fleetInfo.fleetId} entered combat!");
+                        }
+                        // Battle → Idle
+                        else if (prevFleet.state == 1 && fleetInfo.state == 0)
+                        {
+                            PlayBattleEndEffect(new Vector2(fleetInfo.position.X, fleetInfo.position.Y));
+                        }
+                    }
+                }
+            }
+        }
+
+        // === 파괴된 함대 ===
+        var destroyedFleetIds = new List<long>();
+        foreach (var fleetId in _spawnedFleetIds)
+        {
+            if (!currentFleetIds.Contains(fleetId))
+            {
+                destroyedFleetIds.Add(fleetId);
+            }
+        }
+
+        foreach (var fleetId in destroyedFleetIds)
+        {
+            var prevFleet = FindPreviousFleet(fleetId);
+            if (prevFleet != null)
+            {
+                PlayDestroyEffect(new Vector2(prevFleet.position.X, prevFleet.position.Y));
+                Debug.Log($"Fleet {fleetId} destroyed at ({prevFleet.position.X}, {prevFleet.position.Y})");
+            }
+
+            // ⭐ TODO: VisualizationManager에 DestroyFleet 메서드 추가 필요
+            // if (visualizationManager != null)
+            // {
+            //     visualizationManager.DestroyFleet((int)fleetId);
+            // }
+
+            _spawnedFleetIds.Remove(fleetId);
+        }
+    }
+
+    /// <summary>
+    /// 행성 동기화: 소유권, 점령 진행도
+    /// </summary>
+    private void SyncPlanets(long tick)
+    {
+        if (_currentState.planets == null) return;
+
+        for (int i = 0; i < _currentState.planets.Length; i++)
+        {
+            var planet = _currentState.planets[i];
+            int planetId = planet.planetId;
+
+            // 이전 소유자 가져오기
+            int prevOwner = _planetOwners.ContainsKey(planetId) ? _planetOwners[planetId] : -1;
+
+            // === 소유권 변경 감지 ===
+            if (prevOwner != planet.owner)
+            {
+                if (visualizationManager != null)
+                {
+                    visualizationManager.UpdatePlanetOwnership(planetId, planet.owner);
+                }
+
+                if (prevOwner != -1) // 초기화가 아닌 실제 점령
+                {
+                    PlayConquerEffect(planetId);
+                    ShowNotification($"Planet {planetId} conquered by Player {planet.owner}!");
+
+                    // 카메라 효과
+                    if (planet.owner == myPlayerId)
+                    {
+                        CameraFocusPlanet(planetId, 1.5f);
+                    }
+                }
+
+                _planetOwners[planetId] = planet.owner;
+            }
+
+            // === 점령 진행도 업데이트 ===
+            // ⭐ TODO: VisualizationManager에 UpdateConquestProgress 메서드 추가 필요
+            // if (planet.conquestProgress > 0 && visualizationManager != null)
+            // {
+            //     visualizationManager.UpdateConquestProgress(planetId, planet.conquestProgress);
+            // }
+        }
+    }
+
+    /// <summary>
+    /// 자원 UI 업데이트
+    /// </summary>
+    private void SyncResources(long tick)
+    {
+        if (_currentState.players == null) return;
+
+        foreach (var player in _currentState.players)
+        {
+            if (player.id == myPlayerId && uiManager != null && uiManager.resourcesText != null)
+            {
+                // GameUIManager의 resourcesText 직접 업데이트
+                uiManager.resourcesText.text = $"Minerals: {player.Mineral:F1} | Gas: {player.Gas:F1} | Supply: {player.Supply}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// 게임 종료 확인
+    /// </summary>
+    private void CheckGameState(long tick)
+    {
+        if (_currentState.state == 2) // GAMESTATE_ENDED
+        {
+            var alivePlayers = new List<GamePlayManager.GameState.Player>();
+            foreach (var player in _currentState.players)
+            {
+                if (player.fleets != null && player.fleets.Length > 0)
+                {
+                    alivePlayers.Add(player);
+                }
+            }
+
+            if (alivePlayers.Count == 1)
+            {
+                int winnerId = alivePlayers[0].id;
+                bool isWinner = winnerId == myPlayerId;
+
+                string message = isWinner ? "Victory!" : "Defeat!";
+                Debug.Log($"Game ended: {message}");
+
+                if (uiManager != null)
+                {
+                    // uiManager.ShowGameResult(isWinner, winnerId);
+                }
+            }
+            else if (alivePlayers.Count == 0)
+            {
+                Debug.Log("Game ended: Draw (no survivors)");
+            }
+        }
+    }
+
+    #endregion
+
+    #region 헬퍼 메서드
+
+    private GamePlayManager.GameState.FleetInfo FindPreviousFleet(long fleetId)
+    {
+        if (_previousState == null || _previousState.players == null) return null;
+
+        foreach (var player in _previousState.players)
+        {
+            if (player.fleets == null) continue;
+
+            foreach (var fleet in player.fleets)
+            {
+                if (fleet.fleetId == fleetId) return fleet;
+            }
+        }
+        return null;
+    }
+
+    private int FindClosestPlanet(Vector2 position)
+    {
+        int closestId = -1;
+        float minDist = float.MaxValue;
+
+        foreach (var kvp in _planetStaticData)
+        {
+            float dist = Vector2.Distance(position, kvp.Value.Position);
+
+            if (dist < minDist)
+            {
+                minDist = dist;
+                closestId = kvp.Key;
+            }
+        }
+
+        return closestId;
+    }
+
+    // 효과 메서드들 (구현 필요)
+    private void PlayBattleStartEffect(Vector2 pos) { /* TODO */ }
+    private void PlayBattleEndEffect(Vector2 pos) { /* TODO */ }
+    private void PlayDestroyEffect(Vector2 pos) { /* TODO */ }
+    private void PlayConquerEffect(int planetId) { /* TODO */ }
+    private void CameraFocusPlanet(int planetId, float duration) { /* TODO */ }
+    private void ShowNotification(string message) { Debug.Log($"[Notification] {message}"); }
 
     #endregion
 
@@ -489,7 +720,22 @@ public class GameManager : MonoBehaviour
         Debug.Log($"Current Tick: {_currentTick}");
         Debug.Log($"Game Time: {gameTime:F1}s");
         Debug.Log($"GamePlayManager: {(gamePlayManager != null ? "Available" : "Not Available")}");
-        Debug.Log($"Planets: {_planetDataCache.Count}, Fleets: {_fleetDataCache.Count}");
+        Debug.Log($"Static Planets: {_planetStaticData.Count}");
+        Debug.Log($"Spawned Fleets: {_spawnedFleetIds.Count}");
+        Debug.Log($"Planet Owners: {_planetOwners.Count}");
+        if (_currentState != null)
+        {
+            int totalFleets = 0;
+            if (_currentState.players != null)
+            {
+                foreach (var player in _currentState.players)
+                {
+                    if (player.fleets != null)
+                        totalFleets += player.fleets.Length;
+                }
+            }
+            Debug.Log($"Current State - Players: {_currentState.players?.Length ?? 0}, Total Fleets: {totalFleets}");
+        }
         Debug.Log($"==================");
     }
 
@@ -617,27 +863,34 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public int GetHomePlanetId(int playerId)
     {
-        if (_homePlanetByPlayer.TryGetValue(playerId, out int homePlanetId))
+        // State-Sync 모델에서는 모성 정보를 별도로 관리하지 않음
+        // 내 플레이어의 모성만 MyHomePlanetId에 저장됨
+        if (playerId == myPlayerId)
         {
-            return homePlanetId;
+            return MyHomePlanetId;
         }
-        return -1; // 찾지 못하면 -1 반환
+        return -1; // 다른 플레이어는 지원 안 함
     }
 
     /// <summary>
-    /// 에디터 디버그용: 행성 정보를 캐시에 등록하고, 첫 행성이면 모성으로 설정
+    /// 에디터 디버그용: 행성 정보를 등록하고, 첫 행성이면 모성으로 설정
     /// </summary>
     public void EditorRegisterPlanet(int planetId, int ownerId, UnityEngine.Vector2 position)
     {
-        // 캐시 업데이트
-        _planetDataCache[planetId] = new PlanetData
+        // State-Sync 모델에서는 _planetStaticData 사용
+        if (!_planetStaticData.ContainsKey(planetId))
         {
-            PlanetId = planetId,
-            OwnerId = ownerId,
-            Position = new CommonLib.Vector2(position.x, position.y),
-            Minerals = 0,
-            Gas = 0
-        };
+            _planetStaticData[planetId] = new PlanetStaticData
+            {
+                PlanetId = planetId,
+                Position = position,
+                MaxMinerals = 0,
+                MaxGas = 0
+            };
+        }
+
+        // 소유권 초기화
+        _planetOwners[planetId] = ownerId;
 
         // 내 플레이어의 첫 행성이면 모성 등록
         if (ownerId == myPlayerId && MyHomePlanetId == -1)
@@ -766,14 +1019,11 @@ public class GameManager : MonoBehaviour
         // 이벤트 구독 해제
         if (gamePlayManager != null)
         {
+            gamePlayManager.GameStateReceived -= OnGameStateReceived;
             gamePlayManager.GameStarted -= OnGameStarted;
             gamePlayManager.GameEnded -= OnGameEnded;
-            gamePlayManager.OnError -= OnErrorOccurred;
-
-            gamePlayManager.ResourcesUpdated -= OnResourcesUpdated;
             gamePlayManager.FleetSpawned -= OnFleetSpawned;
-            gamePlayManager.FleetMoving -= OnFleetMoving;
-            gamePlayManager.ChatMessageReceived -= OnChatReceived;
+            gamePlayManager.OnError -= OnErrorOccurred;
         }
     }
 }

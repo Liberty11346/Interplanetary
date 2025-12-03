@@ -43,6 +43,7 @@ public class GamePlayManager
 
     // --- 게임 플레이 관련 이벤트들 ---
     public event Action<GameStartData> GameStarted;
+    public event Action<GameState, long> GameStateReceived;  // ⭐ 새 이벤트: GameState 수신
     public event Action<ResourceUpdate> ResourcesUpdated;
     public event Action<FleetSpawnData> FleetSpawned;
     public event Action<FleetMoveData> FleetMoving;
@@ -323,7 +324,10 @@ public class GamePlayManager
 
         _currentTick = serverTick;
 
-        // 이전 상태와 비교하여 변화 감지
+        // ⭐ GameState 수신 이벤트 발생 (GameManager가 상태 동기화에 사용)
+        GameStateReceived?.Invoke(gameState, serverTick);
+
+        // 이전 상태와 비교하여 변화 감지 (개별 이벤트 발생)
         if (_previousGameState != null)
         {
             DetectAndFireEvents(_previousGameState, gameState);
@@ -664,9 +668,13 @@ public class GamePlayManager
                         var origFleet = origPlayer.fleets[j];
                         copy.players[i].fleets[j] = new GameState.FleetInfo
                         {
+                            fleetId = origFleet.fleetId,
+                            fleetType = origFleet.fleetType,
+                            ownerId = origFleet.ownerId,
                             position = origFleet.position,
                             state = origFleet.state,
                             HP = origFleet.HP,
+                            maxHP = origFleet.maxHP,
                             target = origFleet.target
                         };
                     }
@@ -681,6 +689,7 @@ public class GamePlayManager
             {
                 copy.planets[i] = new GameState.Planet
                 {
+                    planetId = original.planets[i].planetId,
                     owner = original.planets[i].owner,
                     conquestProgress = original.planets[i].conquestProgress
                 };
@@ -941,14 +950,19 @@ public class GamePlayManager
 
         public class FleetInfo
         {
+            public long fleetId;        // 함대 고유 ID (추적용)
+            public int fleetType;       // 함대 타입 (시각화용)
+            public int ownerId;         // 소유자 ID
             public CommonLib.Vector2 position;
             public int state = 0;   // 0 = Idle, 1 = battle. 2 = move
             public float HP = 0;
+            public float maxHP = 0;     // 최대 HP (HP바 표시용)
             public CommonLib.Vector2 target;    // idle일때는 무시
         }
 
         public class Planet
         {
+            public int planetId;        // 행성 ID (추적용)
             public int owner = -1;
             public float conquestProgress = 0;
         }

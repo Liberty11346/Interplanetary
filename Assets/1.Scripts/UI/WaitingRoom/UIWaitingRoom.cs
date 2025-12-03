@@ -39,6 +39,8 @@ public class WaitingRoomPresenter
         _roomManager.OnRoomLeft += HandleOnRoomLeft;
         _roomManager.OnWaittingRoomInfoChanged += HandleOnRoomInfoChanged;
         _roomManager.OnGameStarting += HandleOnGameStarting;
+        _roomManager.OnUserJoinedRoom += HandleOnUserJoinedRoom;
+        _roomManager.OnUserLeftRoom += HandleOnUserLeftRoom;
     }
 
     private void HandleOnGameStarting()
@@ -63,6 +65,26 @@ public class WaitingRoomPresenter
         // 프로토콜 고쳐지면 주석 해제할 것.
     }
 
+    /// <summary>
+    /// 유저 입장 이벤트 처리 - 방 정보 새로고침 요청
+    /// </summary>
+    private void HandleOnUserJoinedRoom(int userId, string userName, int playerCount)
+    {
+        Debug.Log($"[WaitingRoom] 유저 입장: {userName} (ID: {userId}), 총 {playerCount}명");
+        // 방 정보 새로고침하여 최신 유저 목록 가져오기
+        _roomManager.RequestJoinedRoomInfoRefresh();
+    }
+
+    /// <summary>
+    /// 유저 퇴장 이벤트 처리 - 방 정보 새로고침 요청
+    /// </summary>
+    private void HandleOnUserLeftRoom(int userId, string userName, int playerCount)
+    {
+        Debug.Log($"[WaitingRoom] 유저 퇴장: {userName} (ID: {userId}), 총 {playerCount}명");
+        // 방 정보 새로고침하여 최신 유저 목록 가져오기
+        _roomManager.RequestJoinedRoomInfoRefresh();
+    }
+
     public void HandleOnReady()
     {
         IsReady = !IsReady;
@@ -76,6 +98,8 @@ public class WaitingRoomPresenter
             _roomManager.OnRoomLeft -= HandleOnRoomLeft;
             _roomManager.OnWaittingRoomInfoChanged -= HandleOnRoomInfoChanged;
             _roomManager.OnGameStarting -= HandleOnGameStarting;
+            _roomManager.OnUserJoinedRoom -= HandleOnUserJoinedRoom;
+            _roomManager.OnUserLeftRoom -= HandleOnUserLeftRoom;
         }
     }
 }
