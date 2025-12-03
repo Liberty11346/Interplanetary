@@ -1,9 +1,12 @@
+using CommonLib;
+using CommonLib.TableData;
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using UnityEngine;
-using CommonLib;
 using System.Linq;
+using System.Threading.Tasks;
+using Unity.VisualScripting;
+using UnityEngine;
+using static GamePlayManager;
 
 /// <summary>
 /// 룸 관리 및 서버 통신 담당 (BaseManager 의존성 제거)
@@ -44,7 +47,7 @@ public class RoomManager
     public event Action<string> OnRoomJoinFailure;
     public event Action<List<RoomInfo>> OnRoomListUpdated;
     public event Action OnRoomLeft;
-    public event Action OnGameStarting; // 게임 시작 알림
+    public event Action<GameStartData> OnGameStarting; // 게임 시작 알림
     public event Action<RoomInfo, WaittingRoomUser[]> OnWaittingRoomInfoChanged; // 방 정보 변경 알림 (WaitingRoom UI용)
     public event Action<int, string, int> OnUserJoinedRoom; // 유저 입장 알림 (userId, userName, playerCount)
     public event Action<int, string, int> OnUserLeftRoom; // 유저 퇴장 알림 (userId, userName, playerCount)
@@ -590,14 +593,72 @@ public class RoomManager
     }
 
     /// <summary>
-      /// 게임 시작 처리 - 씬 전환 이벤트 발생
+    /// 게임 시작 처리 - 씬 전환 이벤트 발생
     /// </summary>
-    private async Task HandleGameSet(Protocol protocol)
+    public async Task HandleGameSet(Protocol protocol)
     {
         EmitStatusMessage("게임이 곧 시작됩니다. GameScene으로 전환합니다...");
 
-        // 게임 시작 이벤트 발생 (UIWaitingRoom에서 씬 전환 처리)
-        OnGameStarting?.Invoke();
+        // record 타입으로 역직렬화
+        var mapInfo = protocol.GetObject<MapInfoData>("mapinfo");
+        var mapPlanetInfos = protocol.GetObject<MapPlanetInfoData[]>("mapplanetinfo");
+        var planetInfos = protocol.GetObject<PlanetInfoData[]>("planets");
+        var routes = protocol.GetObject<MapRouteInfoData[]>("routes");
+
+        Debug.Log($"[GamePlayManager] 맵 데이터 수신: {mapInfo.Name} (ID: {mapInfo.id})");
+        Debug.Log($"[GamePlayManager] 행성 레이아웃: {mapPlanetInfos.Length}개, 행성 정보: {planetInfos.Length}개, 경로: {routes.Length}개");
+
+        // Players 데이터 파싱
+        var players = new List<PlayerData>();
+        foreach (var user in currentWaittingRoomInfo.Item2)
+        {
+            players.Add(new PlayerData
+            {
+                PlayerId = user.UserInfo.UserId,
+                PlayerName = user.UserInfo.UserName,
+                SessionId = _sessionId
+            });
+        }
+
+        // 데이터 조합하여 PlanetData 구성
+        var planetDataList = new List<PlanetData>();
+        var planetInfoDict = planetInfos.ToDictionary(p => p.id, p => p);
+
+        foreach (var mapPlanet in mapPlanetInfos)
+        {
+            if (planetInfoDict.TryGetValue(mapPlanet.planetId, out var info))
+            {
+                planetDataList.Add(new PlanetData
+                {
+                    PlanetId = mapPlanet.id,
+                    OwnerId = 0, // 초기 소유자 없음
+                    Position = new CommonLib.Vector2(mapPlanet.PositionX, mapPlanet.PositionY),
+                    Minerals = info.Mineral,
+                    Gas = info.Gas,
+                    Name = info.Name,
+                    Supply = info.Supply
+                });
+            }
+            else
+            {
+                Debug.LogWarning($"[GamePlayManager] 행성 ID {mapPlanet.planetId}에 대한 정보를 찾을 수 없음");
+            }
+        }
+
+        // GameStartData 구성
+        var gameStartData = new GameStartData
+        {
+            MapId = mapInfo.id,
+            MapInfo = mapInfo,
+            Players = players.ToArray(),
+            Planets = planetDataList.ToArray(),
+            Routes = routes
+        };
+
+        EmitStatusMessage($"게임 시작 데이터 수신 완료 - 맵: {mapInfo.Name}, 행성: {gameStartData.Planets.Length}개, 플레이어: {gameStartData.Players.Length}명");
+
+        // GameStarted 이벤트 발생 (GameSceneInitializer에서 구독하여 초기화 완료 후 REQUEST_GAME_CL_READY 전송)
+        OnGameStarting?.Invoke(gameStartData);
 
         await Task.CompletedTask;
     }

@@ -45,6 +45,7 @@ public class GameManager : MonoBehaviour
 
     // === 정적 데이터 (GameSet에서 1회 수신) ===
     private Dictionary<int, PlanetStaticData> _planetStaticData = new Dictionary<int, PlanetStaticData>();
+    public GameStartData _gameStartData;
 
     // === 동적 데이터 (GameState에서 매 틱 수신) ===
     private GamePlayManager.GameState _currentState;
@@ -117,6 +118,7 @@ public class GameManager : MonoBehaviour
         }
 
         Debug.Log("GameManager initialized - State-Sync 모델 활성화");
+        gamePlayManager.GameStarted?.Invoke(gamePlayManager.GameStartData.Value);
     }
 
     /// <summary>
@@ -186,7 +188,6 @@ public class GameManager : MonoBehaviour
     }
 
     #region 이벤트 핸들러 - 서버로부터 받은 이벤트 처리
-
     /// <summary>
     /// 게임 시작 이벤트 처리 - 초기 게임 상태 설정
     /// </summary>

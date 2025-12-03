@@ -42,15 +42,15 @@ public class GamePlayManager
     public event Action<string> OnStatusMessage;
 
     // --- 게임 플레이 관련 이벤트들 ---
-    public event Action<GameStartData> GameStarted;
-    public event Action<GameState, long> GameStateReceived;  // ⭐ 새 이벤트: GameState 수신
-    public event Action<ResourceUpdate> ResourcesUpdated;
-    public event Action<FleetSpawnData> FleetSpawned;
-    public event Action<FleetMoveData> FleetMoving;
-    public event Action<CombatResult> CombatEnded;
-    public event Action<PlanetConquerData> PlanetConquered;
-    public event Action<GameEndData> GameEnded;
-    public event Action<ChatMessage> ChatMessageReceived;
+    public System.Action<GameStartData> GameStarted;
+    public System.Action<GameState, long> GameStateReceived;  // ⭐ 새 이벤트: GameState 수신
+    public System.Action<ResourceUpdate> ResourcesUpdated;
+    public System.Action<FleetSpawnData> FleetSpawned;
+    public System.Action<FleetMoveData> FleetMoving;
+    public System.Action<CombatResult> CombatEnded;
+    public System.Action<PlanetConquerData> PlanetConquered;
+    public System.Action<GameEndData> GameEnded;
+    public System.Action<ChatMessage> ChatMessageReceived;
 
     // --- 현재 상태 ---
     private UserInfo? currentUser = null;
@@ -61,6 +61,11 @@ public class GamePlayManager
 
     // 게임 시작 데이터 (승리 조건 판정에 필요)
     private GameStartData? _gameStartData = null;
+
+    public void SetGameStartData(GameStartData data)
+    {
+        _gameStartData = data;
+    }
 
     // --- 초기화 및 생명주기 ---
     public async Task Initialize(UserInfo user, string sessionId = "")
@@ -90,7 +95,6 @@ public class GamePlayManager
     private void RegisterNetworkHandlers()
     {
         // 게임 관련 핸들러 등록
-        RegisterHandler(ProtocolType.GAME_SET, HandleGameSet);
         RegisterHandler(ProtocolType.GAME_STATE, HandleReceiveGameState);
         RegisterHandler(ProtocolType.GAME_STARTED, HandleGameStarted);
         RegisterHandler(ProtocolType.GAME_ENDED, HandleGameEnded);
@@ -224,90 +228,6 @@ public class GamePlayManager
             if (bool.TryParse(value.ToString(), out bool parsedValue)) return parsedValue;
         }
         return defaultValue;
-    }
-
-    private async Task HandleGameSet(Protocol protocol)
-    {
-        // record 타입으로 역직렬화
-        var mapInfo = protocol.GetObject<MapInfoData>("mapinfo");
-        var mapPlanetInfos = protocol.GetObject<MapPlanetInfoData[]>("mapplanetinfo");
-        var planetInfos = protocol.GetObject<PlanetInfoData[]>("planets");
-        var routes = protocol.GetObject<MapRouteInfoData[]>("routes");
-
-        Debug.Log($"[GamePlayManager] 맵 데이터 수신: {mapInfo.Name} (ID: {mapInfo.id})");
-        Debug.Log($"[GamePlayManager] 행성 레이아웃: {mapPlanetInfos.Length}개, 행성 정보: {planetInfos.Length}개, 경로: {routes.Length}개");
-
-        // Players 데이터 파싱
-        var players = Array.Empty<PlayerData>();
-        try
-        {
-            string playersJson = protocol.GetParam<string>("players") ?? "[]";
-            players = Newtonsoft.Json.JsonConvert.DeserializeObject<PlayerData[]>(playersJson) ?? Array.Empty<PlayerData>();
-            Debug.Log($"[GamePlayManager] 플레이어 수: {players.Length}");
-
-            // 내 플레이어 ID 찾기 (SessionId로 매칭)
-            if (!string.IsNullOrEmpty(_sessionId))
-            {
-                foreach (var player in players)
-                {
-                    if (player.SessionId == _sessionId)
-                    {
-                        _myPlayerId = player.PlayerId;
-                        Debug.Log($"[GamePlayManager] 내 플레이어 ID 설정: {_myPlayerId} (SessionId: {_sessionId})");
-                        break;
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            EmitError($"플레이어 데이터 파싱 실패: {ex.Message}");
-        }
-
-        // 데이터 조합하여 PlanetData 구성
-        var planetDataList = new List<PlanetData>();
-        var planetInfoDict = planetInfos.ToDictionary(p => p.id, p => p);
-
-        foreach (var mapPlanet in mapPlanetInfos)
-        {
-            if (planetInfoDict.TryGetValue(mapPlanet.planetId, out var info))
-            {
-                planetDataList.Add(new PlanetData
-                {
-                    PlanetId = mapPlanet.id,
-                    OwnerId = 0, // 초기 소유자 없음
-                    Position = new CommonLib.Vector2(mapPlanet.PositionX, mapPlanet.PositionY),
-                    Minerals = info.Mineral,
-                    Gas = info.Gas,
-                    Name = info.Name,
-                    Supply = info.Supply
-                });
-            }
-            else
-            {
-                Debug.LogWarning($"[GamePlayManager] 행성 ID {mapPlanet.planetId}에 대한 정보를 찾을 수 없음");
-            }
-        }
-
-        // GameStartData 구성
-        var gameStartData = new GameStartData
-        {
-            MapId = mapInfo.id,
-            MapInfo = mapInfo,
-            Players = players,
-            Planets = planetDataList.ToArray(),
-            Routes = routes
-        };
-
-        EmitStatusMessage($"게임 시작 데이터 수신 완료 - 맵: {mapInfo.Name}, 행성: {gameStartData.Planets.Length}개, 플레이어: {gameStartData.Players.Length}명");
-
-        // 게임 시작 데이터 저장 (승리 조건 판정에 필요)
-        _gameStartData = gameStartData;
-
-        // GameStarted 이벤트 발생 (GameSceneInitializer에서 구독하여 초기화 완료 후 REQUEST_GAME_CL_READY 전송)
-        GameStarted?.Invoke(gameStartData);
-
-        await Task.CompletedTask;
     }
 
     private async Task HandleReceiveGameState(Protocol protocol)

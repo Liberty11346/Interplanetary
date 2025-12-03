@@ -1,4 +1,5 @@
 using CommonLib;
+using CommonLib.TableData;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -43,9 +44,10 @@ public class WaitingRoomPresenter
         _roomManager.OnUserLeftRoom += HandleOnUserLeftRoom;
     }
 
-    private void HandleOnGameStarting()
+    private void HandleOnGameStarting(GameStartData data)
     {
         SceneManager.LoadScene("GameScene");
+        GamePlayManager.Instance.SetGameStartData(data);
     }
 
     private void HandleOnRoomInfoChanged(RoomInfo obj, WaittingRoomUser[] users)
