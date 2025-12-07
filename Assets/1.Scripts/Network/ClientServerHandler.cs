@@ -54,6 +54,12 @@ namespace CommonLib
             (int)ProtocolType.ROOM_CLOSED
         };
 
+        // --- 이벤트 (자식 클래스들이 구독 가능) ---
+        public event Action<Protocol> OnSystemBroadcastEvent;
+        public event Action<Protocol> OnChatMessageEvent;
+        public event Action<Protocol> OnUserJoinedEvent;
+        public event Action<Protocol> OnUserLeftEvent;
+
         // --- 속성 ---
         public bool IsConnected => networkManager?.Config.IsConnected ?? false;
 
@@ -317,8 +323,6 @@ namespace CommonLib
             // 브로드캐스트 메시지 처리
             RegisterHandler((int)ProtocolType.BRODCAST_CHAT_MESSAGE, HandleBroadcastChatMessage);
             RegisterHandler((int)ProtocolType.BRODCAST_SYSTEM, HandleBroadcastSystem);
-
-            // 유저 관련 이벤트 처리
             RegisterHandler((int)ProtocolType.USER_JOINED, HandleUserJoined);
             RegisterHandler((int)ProtocolType.USER_LEFT, HandleUserLeft);
         }
@@ -361,24 +365,28 @@ namespace CommonLib
         private async Task HandleBroadcastChatMessage(Protocol protocol)
         {
             Debug.Log("[ClientServerHandler] Received Chat Message Broadcast. Displaying in UI.");
+            OnChatMessageEvent?.Invoke(protocol);
             await Task.CompletedTask;
         }
 
         private async Task HandleBroadcastSystem(Protocol protocol)
         {
             Debug.Log("[ClientServerHandler] Received System Broadcast. Displaying in UI.");
+            OnSystemBroadcastEvent?.Invoke(protocol);
             await Task.CompletedTask;
         }
 
         private async Task HandleUserJoined(Protocol protocol)
         {
-            Debug.Log("[ClientServerHandler] Received User Joined. Updating lobby list.");
+            Debug.Log("[ClientServerHandler] Received User Joined.");
+            OnUserJoinedEvent?.Invoke(protocol);
             await Task.CompletedTask;
         }
 
         private async Task HandleUserLeft(Protocol protocol)
         {
-            Debug.Log("[ClientServerHandler] Received User Left. Updating lobby list.");
+            Debug.Log("[ClientServerHandler] Received User Left.");
+            OnUserLeftEvent?.Invoke(protocol);
             await Task.CompletedTask;
         }
     }

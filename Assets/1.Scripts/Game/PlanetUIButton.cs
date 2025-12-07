@@ -63,7 +63,7 @@ public class PlanetUIButton : MonoBehaviour
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnPlanetSelected += OnPlanetSelectionChanged;
-            _myPlayerId = GameManager.Instance.myPlayerId;
+            _myPlayerId = GameManager.Instance.MyPlayerId;
         }
     }
 
@@ -129,7 +129,7 @@ public class PlanetUIButton : MonoBehaviour
         // MyPlayerId 업데이트 (게임 시작 후 처음 호출될 때 설정)
         if (_myPlayerId == -1 && GameManager.Instance != null)
         {
-            _myPlayerId = GameManager.Instance.myPlayerId;
+            _myPlayerId = GameManager.Instance.MyPlayerId;
         }
 
         Debug.Log($"[PlanetUIButton] Setting planet data - ID: {planetId}, Name: {planetData.Name}, IsHomePlanet: {IsHomePlanet}, planetNameText: {(planetNameText != null ? "assigned" : "NULL")}");

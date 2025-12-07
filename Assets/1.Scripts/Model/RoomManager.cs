@@ -47,7 +47,7 @@ public class RoomManager
     public event Action<string> OnRoomJoinFailure;
     public event Action<List<RoomInfo>> OnRoomListUpdated;
     public event Action OnRoomLeft;
-    public event Action<GameStartData> OnGameStarting; // 게임 시작 알림
+    public event Action<GameStartData> OnGameSetReceived; // GAME_SET 수신 알림 (맵 데이터)
     public event Action<RoomInfo, WaittingRoomUser[]> OnWaittingRoomInfoChanged; // 방 정보 변경 알림 (WaitingRoom UI용)
     public event Action<int, string, int> OnUserJoinedRoom; // 유저 입장 알림 (userId, userName, playerCount)
     public event Action<int, string, int> OnUserLeftRoom; // 유저 퇴장 알림 (userId, userName, playerCount)
@@ -90,10 +90,11 @@ public class RoomManager
 
     private void RegisterNetworkHandlers()
     {
-        // 룸 관련 브로드캐스트 메시지 처리
-        RegisterHandler(ProtocolType.BRODCAST_SYSTEM, HandleRoomBroadcast);
-        RegisterHandler(ProtocolType.USER_JOINED, HandleUserJoined);
-        RegisterHandler(ProtocolType.USER_LEFT, HandleUserLeft);
+        // ✅ 이벤트 구독 방식으로 변경 (ClientServerHandler의 기본 핸들러 덮어쓰기 방지)
+        networkClient.OnUserJoinedEvent += HandleUserJoined;
+        networkClient.OnUserLeftEvent += HandleUserLeft;
+
+        // 룸 전용 핸들러는 직접 등록 (충돌 없음)
         RegisterHandler(ProtocolType.ROOM_INFO_CHANGED, HandleRoomInfoChanged);
         RegisterHandler(ProtocolType.ROOM_CLOSED, HandleRoomClosed);
         RegisterHandler(ProtocolType.GAME_SET, HandleGameSet);
@@ -101,6 +102,13 @@ public class RoomManager
 
     public void Cleanup()
     {
+        // 이벤트 구독 해제
+        if (networkClient != null)
+        {
+            networkClient.OnUserJoinedEvent -= HandleUserJoined;
+            networkClient.OnUserLeftEvent -= HandleUserLeft;
+        }
+
         currentRoom = null;
         isInRoom = false;
         cachedRoomList.Clear();
@@ -475,16 +483,6 @@ public class RoomManager
     // --- 네트워크 이벤트 핸들러들 ---
 
     /// <summary>
-    /// 시스템 브로드캐스트 처리
-    /// </summary>
-    private async Task HandleRoomBroadcast(Protocol protocol)
-    {
-        string messageType = protocol.GetParam<string>("messageType");
-        EmitStatusMessage($"시스템 브로드캐스트: {messageType}");
-        await Task.CompletedTask;
-    }
-
-    /// <summary>
     /// 룸 정보 변경 처리
     /// </summary>
     private async Task HandleRoomInfoChanged(Protocol protocol)
@@ -543,7 +541,7 @@ public class RoomManager
     /// <summary>
     /// 유저 입장 처리
     /// </summary>
-    private async Task HandleUserJoined(Protocol protocol)
+    private void HandleUserJoined(Protocol protocol)
     {
         if (isInRoom && currentRoom.HasValue)
         {
@@ -562,14 +560,12 @@ public class RoomManager
             // 이벤트 발생
             OnUserJoinedRoom?.Invoke(userId, userName, newPlayerCount);
         }
-
-        await Task.CompletedTask;
     }
 
     /// <summary>
     /// 유저 퇴장 처리
     /// </summary>
-    private async Task HandleUserLeft(Protocol protocol)
+    private void HandleUserLeft(Protocol protocol)
     {
         if (isInRoom && currentRoom.HasValue)
         {
@@ -588,8 +584,6 @@ public class RoomManager
             // 이벤트 발생
             OnUserLeftRoom?.Invoke(userId, userName, newPlayerCount);
         }
-
-        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -657,8 +651,9 @@ public class RoomManager
 
         EmitStatusMessage($"게임 시작 데이터 수신 완료 - 맵: {mapInfo.Name}, 행성: {gameStartData.Planets.Length}개, 플레이어: {gameStartData.Players.Length}명");
 
-        // GameStarted 이벤트 발생 (GameSceneInitializer에서 구독하여 초기화 완료 후 REQUEST_GAME_CL_READY 전송)
-        OnGameStarting?.Invoke(gameStartData);
+        // GAME_SET 수신 이벤트 발생 (맵 초기화용)
+        // 실제 게임 시작은 GAME_STARTED 수신 시 GamePlayManager에서 처리
+        OnGameSetReceived?.Invoke(gameStartData);
 
         await Task.CompletedTask;
     }

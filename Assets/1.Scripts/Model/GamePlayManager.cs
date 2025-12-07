@@ -94,15 +94,23 @@ public class GamePlayManager
 
     private void RegisterNetworkHandlers()
     {
-        // 게임 관련 핸들러 등록
+        // ✅ 이벤트 구독 방식으로 변경 (ClientServerHandler의 기본 핸들러 덮어쓰기 방지)
+        networkClient.OnChatMessageEvent += HandleChatBroadcast;
+
+        // 게임 전용 핸들러는 직접 등록 (충돌 없음)
         RegisterHandler(ProtocolType.GAME_STATE, HandleReceiveGameState);
         RegisterHandler(ProtocolType.GAME_STARTED, HandleGameStarted);
         RegisterHandler(ProtocolType.GAME_ENDED, HandleGameEnded);
-        RegisterHandler(ProtocolType.BRODCAST_CHAT_MESSAGE, HandleChatBroadcast);
     }
 
     public void Cleanup()
     {
+        // 이벤트 구독 해제
+        if (networkClient != null)
+        {
+            networkClient.OnChatMessageEvent -= HandleChatBroadcast;
+        }
+
         // 상태 초기화
         _previousGameState = null;
         _gameStartData = null;
@@ -264,18 +272,19 @@ public class GamePlayManager
     /// </summary>
     private void DetectAndFireEvents(GameState previous, GameState current)
     {
-        // 1. 게임 종료 체크
-        if (previous.state != 2 && current.state == 2)
+        // 1. 게임 종료 체크 (가이드 명세: state 필드로 승자 판정)
+        if ((previous.state == 0 || previous.state == 2) &&
+            (current.state == 1 || current.state == -1 || current.state == 3))
         {
-            // 게임이 종료됨
-            int winnerId = DetermineWinner(current);
+            // 게임 종료 상태로 전환됨
+            int winnerId = DetermineWinnerFromState(current.state);
             GameEnded?.Invoke(new GameEndData
             {
                 WinnerId = winnerId,
-                Reason = "게임 종료",
-                GameDuration = _currentTick * 100 // 틱당 100ms 가정
+                Reason = GetEndReason(current.state),
+                GameDuration = _currentTick * 50 // 틱당 50ms
             });
-            EmitStatusMessage($"게임 종료! 승자: Player {winnerId}");
+            EmitStatusMessage($"게임 종료! 승자: Player {winnerId}, 사유: {GetEndReason(current.state)}");
         }
 
         // 2. 행성 소유권 변경 감지
@@ -286,6 +295,30 @@ public class GamePlayManager
 
         // 4. 함대 상태 변경 감지
         DetectFleetChanges(previous, current);
+    }
+
+    /// <summary>
+    /// 가이드 명세에 따른 승자 판정
+    /// state == 1: Player 0 승리
+    /// state == -1: Player 1 승리
+    /// state == 3: 무승부 또는 기타
+    /// </summary>
+    private int DetermineWinnerFromState(int state)
+    {
+        if (state == 1) return 0;       // Player 0 승리
+        if (state == -1) return 1;      // Player 1 승리
+        return -1;                      // 무승부
+    }
+
+    /// <summary>
+    /// 종료 사유 반환
+    /// </summary>
+    private string GetEndReason(int state)
+    {
+        if (state == 1) return "Player 0 승리";
+        if (state == -1) return "Player 1 승리";
+        if (state == 3) return "게임 종료";
+        return "알 수 없는 사유";
     }
 
     /// <summary>
@@ -322,7 +355,7 @@ public class GamePlayManager
     }
 
     /// <summary>
-    /// 홈월드 점령 여부 확인 및 게임 종료 처리
+    /// 홈월드 점령 로그 출력 (승리 조건은 서버의 GameState.state에서 판정)
     /// </summary>
     private void CheckHomeworldConquest(int planetIndex, int newOwnerId)
     {
@@ -340,29 +373,15 @@ public class GamePlayManager
         // Player 1의 홈월드가 점령되었는지 확인
         if (conqueredPlanetId == mapInfo.Player1_HomeID && newOwnerId == 1)
         {
-            EmitStatusMessage($"🎉 Player 2 승리! Player 1의 홈월드(ID: {conqueredPlanetId})를 점령했습니다!");
-
-            // 게임 종료 이벤트 발생
-            GameEnded?.Invoke(new GameEndData
-            {
-                WinnerId = 1,
-                Reason = "Player 1의 홈월드 점령",
-                GameDuration = _currentTick * 100
-            });
+            EmitStatusMessage($"🎉 Player 2가 Player 1의 홈월드(ID: {conqueredPlanetId})를 점령했습니다!");
         }
         // Player 2의 홈월드가 점령되었는지 확인
         else if (conqueredPlanetId == mapInfo.Player2_HomeID && newOwnerId == 0)
         {
-            EmitStatusMessage($"🎉 Player 1 승리! Player 2의 홈월드(ID: {conqueredPlanetId})를 점령했습니다!");
-
-            // 게임 종료 이벤트 발생
-            GameEnded?.Invoke(new GameEndData
-            {
-                WinnerId = 0,
-                Reason = "Player 2의 홈월드 점령",
-                GameDuration = _currentTick * 100
-            });
+            EmitStatusMessage($"🎉 Player 1이 Player 2의 홈월드(ID: {conqueredPlanetId})를 점령했습니다!");
         }
+
+        // 실제 승리 조건은 서버가 GameState.state 필드로 판정하여 전송
     }
 
     /// <summary>
@@ -481,74 +500,6 @@ public class GamePlayManager
         }
     }
 
-    /// <summary>
-    /// 승자 결정 로직 - 상대방의 Homeworld를 점령하면 승리
-    /// </summary>
-    private int DetermineWinner(GameState gameState)
-    {
-        if (gameState.players == null || gameState.players.Length == 0)
-            return -1;
-
-        if (_gameStartData == null || !_gameStartData.HasValue)
-        {
-            Debug.LogWarning("[GamePlayManager] GameStartData가 없어 승자를 결정할 수 없습니다");
-            return -1;
-        }
-
-        var mapInfo = _gameStartData.Value.MapInfo;
-
-        // Player 1의 홈월드 ID와 Player 2의 홈월드 ID
-        int player1HomeworldId = mapInfo.Player1_HomeID;
-        int player2HomeworldId = mapInfo.Player2_HomeID;
-
-        if (gameState.planets == null)
-            return -1;
-
-        // 홈월드의 현재 소유자 확인
-        int player1HomeworldOwner = -1;
-        int player2HomeworldOwner = -1;
-
-        // 행성 배열 인덱스와 행성 ID 매핑 필요
-        // GameStartData의 Planets에서 행성 ID와 인덱스 매핑 생성
-        var planetIdToIndex = new Dictionary<int, int>();
-        for (int i = 0; i < _gameStartData.Value.Planets.Length; i++)
-        {
-            planetIdToIndex[_gameStartData.Value.Planets[i].PlanetId] = i;
-        }
-
-        // Player 1의 홈월드 소유자 확인
-        if (planetIdToIndex.TryGetValue(player1HomeworldId, out int p1Index) &&
-            p1Index < gameState.planets.Length)
-        {
-            player1HomeworldOwner = gameState.planets[p1Index].owner;
-        }
-
-        // Player 2의 홈월드 소유자 확인
-        if (planetIdToIndex.TryGetValue(player2HomeworldId, out int p2Index) &&
-            p2Index < gameState.planets.Length)
-        {
-            player2HomeworldOwner = gameState.planets[p2Index].owner;
-        }
-
-        // 승리 조건 체크
-        // Player 1의 홈월드를 Player 2가 점령했으면 Player 2 승리 (player id는 0, 1로 가정)
-        if (player1HomeworldOwner == 1) // Player 2(id=1)가 Player 1의 홈월드 점령
-        {
-            Debug.Log($"[GamePlayManager] Player 2 승리! Player 1의 홈월드(ID: {player1HomeworldId}) 점령");
-            return 1;
-        }
-
-        // Player 2의 홈월드를 Player 1이 점령했으면 Player 1 승리
-        if (player2HomeworldOwner == 0) // Player 1(id=0)이 Player 2의 홈월드 점령
-        {
-            Debug.Log($"[GamePlayManager] Player 1 승리! Player 2의 홈월드(ID: {player2HomeworldId}) 점령");
-            return 0;
-        }
-
-        // 승자가 결정되지 않은 경우
-        Debug.LogWarning("[GamePlayManager] 게임이 종료되었지만 승자를 결정할 수 없습니다");
-        return -1;
-    }
 
     /// <summary>
     /// GameState 깊은 복사
@@ -622,11 +573,24 @@ public class GamePlayManager
     // --- 네트워크 이벤트 핸들러들 ---
 
     /// <summary>
-    /// 게임 시작 브로드캐스트 처리
+    /// 게임 시작 브로드캐스트 처리 (GAME_STARTED)
+    /// 가이드 명세: GAME_SET 직후 수신, 실제 게임 시작 신호
     /// </summary>
     private async Task HandleGameStarted(Protocol _)
     {
         EmitStatusMessage("게임이 시작되었습니다!");
+
+        // 게임 시작 이벤트 발생 (GameManager가 구독하여 처리)
+        if (_gameStartData.HasValue)
+        {
+            GameStarted?.Invoke(_gameStartData.Value);
+            Debug.Log("[GamePlayManager] GAME_STARTED - 게임 시작 이벤트 발생");
+        }
+        else
+        {
+            Debug.LogWarning("[GamePlayManager] GAME_STARTED 수신했지만 GameStartData가 없습니다");
+        }
+
         await Task.CompletedTask;
     }
 
@@ -662,7 +626,7 @@ public class GamePlayManager
     /// <summary>
     /// 채팅 메시지 브로드캐스트 처리
     /// </summary>
-    private async Task HandleChatBroadcast(Protocol protocol)
+    private void HandleChatBroadcast(Protocol protocol)
     {
         try
         {
@@ -677,41 +641,36 @@ public class GamePlayManager
         {
             EmitError($"채팅 메시지 처리 오류: {ex.Message}");
         }
-
-        await Task.CompletedTask;
     }
 
     // --- 게임 명령 전송 메서드 ---
 
     /// <summary>
     /// 함대 생산 요청
+    /// 가이드 명세: target = fleetTypeId만 전송 (서버가 플레이어의 모성에서 자동 생산)
     /// </summary>
-    public async Task<bool> RequestProduceFleet(int planetId, int fleetType)
+    public async Task<bool> RequestProduceFleet(int fleetType)
     {
         ValidateNetworkConnection();
 
         var protocol = new Protocol(ProtocolType.SUBMIT_COMMAND)
-            .AddParam("commandType", (int)CommonLib.Commands.GameCommandType.ProduceFleet)
-            .AddParam("commandData", Newtonsoft.Json.JsonConvert.SerializeObject(new { target = planetId, fleetType = fleetType }))
-            .AddParam("tick", _currentTick)
-            .AddParam("target", planetId)
-            .AddParam("fleetType", fleetType);
+            .AddParam("tick", 0L)  // 서버가 자동 계산
+            .AddParam("target", fleetType);
 
-        var response = await SafeSendAsync(protocol, $"함대 생산 요청 (행성: {planetId}, 타입: {fleetType})");
+        var response = await SafeSendAsync(protocol, $"함대 생산 요청 (타입: {fleetType})");
         return response.isSuccess;
     }
 
     /// <summary>
     /// 함대 이동 요청
+    /// 가이드 명세: tick, target_fleet, target_planet만 전송
     /// </summary>
     public async Task<bool> RequestMoveFleet(int fleetId, int targetPlanetId)
     {
         ValidateNetworkConnection();
 
         var protocol = new Protocol(ProtocolType.SUBMIT_COMMAND)
-            .AddParam("commandType", (int)CommonLib.Commands.GameCommandType.MoveFleet)
-            .AddParam("commandData", Newtonsoft.Json.JsonConvert.SerializeObject(new { target_fleet = fleetId, target_planet = targetPlanetId }))
-            .AddParam("tick", _currentTick)
+            .AddParam("tick", 0L)  // 서버가 자동 계산
             .AddParam("target_fleet", fleetId)
             .AddParam("target_planet", targetPlanetId);
 
@@ -834,9 +793,9 @@ public class GamePlayManager
     /// <summary>
     /// 함대 생산 (UI 호출용)
     /// </summary>
-    public async void ProduceFleet(int planetId, int fleetType)
+    public async void ProduceFleet(int fleetType)
     {
-        await RequestProduceFleet(planetId, fleetType);
+        await RequestProduceFleet(fleetType);
     }
 
     /// <summary>
@@ -857,6 +816,10 @@ public class GamePlayManager
 
     // --- 게임 상태 정의 ---
 
+
+    /// <summary>
+    /// 게임 상태 클래스. 매 틱마다 클라 전송.
+    /// </summary>
     public class GameState
     {
         public class Player

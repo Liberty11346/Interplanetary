@@ -69,12 +69,19 @@ public class UserManager
 
     private void RegisterNetworkHandlers()
     {
-        RegisterHandler(ProtocolType.BRODCAST_SYSTEM, HandleSystemBroadcast);
+        // ✅ 이벤트 구독 방식으로 변경 (핸들러 덮어쓰기 방지)
+        networkClient.OnSystemBroadcastEvent += HandleSystemBroadcast;
     }
-    
+
 
     private void Cleanup()
     {
+        // 이벤트 구독 해제
+        if (networkClient != null)
+        {
+            networkClient.OnSystemBroadcastEvent -= HandleSystemBroadcast;
+        }
+
         currentUser = null;
         isLoggedIn = false;
         sessionToken = null;
@@ -304,7 +311,7 @@ public class UserManager
 
     // --- 네트워크 이벤트 핸들러들 ---
 
-    private async Task HandleSystemBroadcast(Protocol protocol)
+    private void HandleSystemBroadcast(Protocol protocol)
     {
         string messageType = protocol.GetParam<string>("messageType");
 
@@ -324,8 +331,6 @@ public class UserManager
                 OnLoginFailure?.Invoke(forceReason);
                 break;
         }
-
-        await Task.CompletedTask;
     }
 
     // --- UI 호출용 간단 래퍼 메서드들 ---

@@ -39,15 +39,24 @@ public class WaitingRoomPresenter
     {
         _roomManager.OnRoomLeft += HandleOnRoomLeft;
         _roomManager.OnWaittingRoomInfoChanged += HandleOnRoomInfoChanged;
-        _roomManager.OnGameStarting += HandleOnGameStarting;
+        _roomManager.OnGameSetReceived += HandleOnGameSetReceived;
         _roomManager.OnUserJoinedRoom += HandleOnUserJoinedRoom;
         _roomManager.OnUserLeftRoom += HandleOnUserLeftRoom;
     }
 
-    private void HandleOnGameStarting(GameStartData data)
+    private async void HandleOnGameSetReceived(GameStartData data)
     {
-        SceneManager.LoadScene("GameScene");
+        // GAME_SET 수신 - 맵 데이터 저장하고 씬 로드
         GamePlayManager.Instance.SetGameStartData(data);
+
+        // GameScene 로드
+        SceneManager.LoadScene("GameScene");
+
+        // ⭐ 씬 로드 완료 대기 (다음 프레임까지)
+        await System.Threading.Tasks.Task.Delay(100);
+
+        // ⭐ TODO: 여기서는 씬만 로드, 실제 초기화 완료 후 REQUEST_GAME_CL_READY는
+        // GameScene의 초기화 컴포넌트에서 전송해야 함
     }
 
     private void HandleOnRoomInfoChanged(RoomInfo obj, WaittingRoomUser[] users)
@@ -99,7 +108,7 @@ public class WaitingRoomPresenter
         {
             _roomManager.OnRoomLeft -= HandleOnRoomLeft;
             _roomManager.OnWaittingRoomInfoChanged -= HandleOnRoomInfoChanged;
-            _roomManager.OnGameStarting -= HandleOnGameStarting;
+            _roomManager.OnGameSetReceived -= HandleOnGameSetReceived;
             _roomManager.OnUserJoinedRoom -= HandleOnUserJoinedRoom;
             _roomManager.OnUserLeftRoom -= HandleOnUserLeftRoom;
         }
