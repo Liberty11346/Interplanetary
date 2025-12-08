@@ -60,7 +60,13 @@ public class UIPlanet : MonoBehaviour
         image.sprite = ResourceManager.Instance.GetPlanetSprite(data.PlanetId.ToString());
 
         // 행성은 위치가 고정
-        rectTransform.anchoredPosition = new UnityEngine.Vector2(data.Position.X, data.Position.Y);
+        rectTransform.anchoredPosition = ConvertCVectorToRect(data.Position);
+    }
+
+    private UnityEngine.Vector2 ConvertCVectorToRect(CommonLib.Vector2 vector2)
+    {
+        const float uiScale = 10f; // 맵 스케일에 맞게 조정 필요
+        return new UnityEngine.Vector2(vector2.X * uiScale, vector2.Y * uiScale);
     }
 
     /// <summary>

@@ -21,7 +21,7 @@ public class UIPath : MonoBehaviour
     public void Initialize(PathData data)
     {
         pathData = data;
-        
+
         // LineRenderer 설정
         lineRenderer.positionCount = 2;
         lineRenderer.SetPosition(0, new Vector3(data.FromPosition.x, data.FromPosition.y, 0));

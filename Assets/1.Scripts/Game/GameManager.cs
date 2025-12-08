@@ -76,6 +76,7 @@ public class GameManager : MonoBehaviour
     // === 엔티티 추적 ===
     private HashSet<long> _spawnedFleetIds = new HashSet<long>();
     private Dictionary<int, int> _planetOwners = new Dictionary<int, int>(); // planetId -> ownerId
+    private Dictionary<int, PlanetData> _planetDatas = new Dictionary<int, PlanetData>();
 
     private void Awake()
     {
@@ -144,6 +145,10 @@ public class GameManager : MonoBehaviour
         }
 
         Debug.Log("GameManager initialized - State-Sync 모델 활성화");
+
+        // ⭐ 가이드 명세: 모든 초기화 완료 후 REQUEST_GAME_CL_READY 전송
+        // GAME_SET → 맵 로딩 → 초기화 완료 → REQUEST_GAME_CL_READY → GAME_STARTED 대기
+        _ = SendGameClientReady();
     }
 
     /// <summary>
@@ -265,9 +270,11 @@ public class GameManager : MonoBehaviour
             // UIGame으로 행성 생성
             if (gameData.Planets != null)
             {
+                _planetDatas.Clear();
                 foreach (var planet in gameData.Planets)
                 {
                     uiGame.CreateOrUpdatePlanet(planet.PlanetId, planet);
+                    _planetDatas.Add(planet.PlanetId, planet);
                 }
             }
 
@@ -276,13 +283,20 @@ public class GameManager : MonoBehaviour
             {
                 foreach (var route in gameData.Routes)
                 {
+                    if (!_planetDatas.TryGetValue(route.planetToId, out PlanetData toPlanet) ||
+                        !_planetDatas.TryGetValue(route.planetFromId, out PlanetData fromPlanet))
+                    {
+                        Debug.LogWarning($"Route {route.id} references unknown planets: From {route.planetFromId}, To {route.planetToId}");
+                        continue;
+                    }
+
                     PathData pathData = new PathData
                     {
                         PathId = route.id,
                         FromPlanetId = route.planetFromId,
                         ToPlanetId = route.planetToId,
-                        FromPosition = new UnityEngine.Vector2(0, 0), // 위치는 행성 데이터에서 가져와야 함
-                        ToPosition = new UnityEngine.Vector2(0, 0),
+                        FromPosition = ConvertCVectorToRect(fromPlanet.Position),
+                        ToPosition = ConvertCVectorToRect(toPlanet.Position),
                         LineColor = UnityEngine.Color.white
                     };
                     uiGame.CreateOrUpdatePath(route.id, pathData);
@@ -292,6 +306,13 @@ public class GameManager : MonoBehaviour
 
             Debug.Log("Game visualization initialized");
         }
+    }
+
+
+    private UnityEngine.Vector2 ConvertCVectorToRect(CommonLib.Vector2 vector2)
+    {
+        const float uiScale = 10f; // 맵 스케일에 맞게 조정 필요
+        return new UnityEngine.Vector2(vector2.X * uiScale, vector2.Y * uiScale);
     }
 
     /// <summary>
@@ -617,9 +638,7 @@ public class GameManager : MonoBehaviour
 
         Debug.Log("[GameManager] Initial game state setup completed");
 
-        // ⭐ 가이드 명세: 모든 초기화 완료 후 REQUEST_GAME_CL_READY 전송
-        // GAME_SET → 맵 로딩 → 초기화 완료 → REQUEST_GAME_CL_READY → GAME_STARTED 대기
-        await SendGameClientReady();
+        // REQUEST_GAME_CL_READY는 InitializeGame에서 전송됨
     }
 
     /// <summary>

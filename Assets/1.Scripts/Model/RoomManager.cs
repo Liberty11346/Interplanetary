@@ -422,9 +422,9 @@ public class RoomManager
 
             if(response.isSuccess)
             {
-                string roomId = protocol.GetParam<string>("roomId");
-                RoomInfo? roominfo = protocol.GetStruct<RoomInfo>("roomInfo");
-                WaittingRoomUser[] users = protocol.GetObject<WaittingRoomUser[]>("users");
+                string roomId = response.GetParam<string>("roomId");
+                RoomInfo? roominfo = response.GetStruct<RoomInfo>("roomInfo");
+                WaittingRoomUser[] users = response.GetObject<WaittingRoomUser[]>("users");
 
                 if (roomId != null && roominfo != null && users != null)
                 {

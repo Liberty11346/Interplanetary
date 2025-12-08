@@ -73,7 +73,7 @@ public class GamePlayManager
     }
 
     // --- 초기화 및 생명주기 ---
-    public async Task Initialize(UserInfo user, string sessionId = "")
+    public void Initialize(UserInfo user, string sessionId = "")
     {
         currentUser = user;
         _sessionId = sessionId;
@@ -93,8 +93,6 @@ public class GamePlayManager
             isInitialized = true;
             EmitStatusMessage("GamePlayManager 초기화 완료");
         }
-
-        await Task.CompletedTask;
     }
 
     private void RegisterNetworkHandlers()
@@ -152,6 +150,21 @@ public class GamePlayManager
 
     private void ValidateNetworkConnection()
     {
+        // 초기화되지 않았다면 UserManager를 통해 자동 초기화 시도
+        if (!isInitialized)
+        {
+            var userManager = UserManager.Instance;
+            if (userManager.IsLoggedIn && userManager.CurrentUser.HasValue)
+            {
+                Debug.Log("[GamePlayManager] 자동 초기화 수행 (from UserManager)");
+                Initialize(userManager.CurrentUser.Value, userManager.SessionToken);
+            }
+            else
+            {
+                Debug.LogWarning("[GamePlayManager] 자동 초기화 실패: 유저가 로그인하지 않았습니다.");
+            }
+        }
+
         if (!IsNetworkReady())
         {
             throw new InvalidOperationException("서버에 연결되지 않았습니다");

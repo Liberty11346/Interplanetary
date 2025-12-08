@@ -2405,9 +2405,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   debugMapId: 1
-  uiManager: {fileID: 3927658609955965733}
   uiGame: {fileID: 437551033}
-  uiHUD: {fileID: 0}
+  uiHUD: {fileID: 658300659}
   _gameStartData:
     MapId: 0
     Players: []
@@ -3269,6 +3268,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 53783654fd408174a8cff6787f91e1a6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  enableChat: 1
   productionButtons: {fileID: 1651050590}
   playerResource: {fileID: 1208026120}
   fleetInfo: {fileID: 1319772873}
