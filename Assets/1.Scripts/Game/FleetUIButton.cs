@@ -6,6 +6,14 @@ using CommonLib;
 using UnityEngine.Events;
 using Vector3 = UnityEngine.Vector3;
 
+
+public class FleetData
+{
+    public int FleetId;
+    public int OwnerId;
+    public int FleetType;
+    public int CurrentPlanetId;
+}
 /// <summary>
 /// 데이터를 받아서 초기화하는 함대 클래스
 /// </summary>

@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 89aad1a734d155145b2552587cfd55b5, type: 3}
+  m_Name: FleetLibrary_Blue
+  m_EditorClassIdentifier: 
+  fleetList:
+  - id: 0
+    displayName: "\uC815\uCC30\uAE30"
+    icon: {fileID: -5005237845129868531, guid: f32d96da99383db498b3d92d10c5259e, type: 3}
+    description: 
+  - id: 1
+    displayName: "\uAD6C\uCD95\uD568"
+    icon: {fileID: -5216317637261038999, guid: f32d96da99383db498b3d92d10c5259e, type: 3}
+    description: 
+  - id: 2
+    displayName: "\uC21C\uC591\uD568"
+    icon: {fileID: 7963825791275371049, guid: f32d96da99383db498b3d92d10c5259e, type: 3}
+    description: 
+  - id: 3
+    displayName: "\uC804\uD22C\uC21C\uC591\uD568"
+    icon: {fileID: -3830918916106686774, guid: f32d96da99383db498b3d92d10c5259e, type: 3}
+    description: 

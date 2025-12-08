@@ -3,11 +3,10 @@ using UnityEngine.UI;
 using TMPro;
 using CommonLib;
 
+[System.Obsolete("Replaced by UI_HUD. Do not use.")]
 public class GameUIManager : MonoBehaviour
 {
     [Header("Connection UI")]
-    public Button connectButton;
-    public Button disconnectButton;
     public TextMeshProUGUI connectionStatusText;
 
     [Header("Chat UI")]
@@ -49,12 +48,6 @@ public class GameUIManager : MonoBehaviour
         }
 
         // UI 이벤트 설정
-        if (connectButton != null)
-            connectButton.onClick.AddListener(() => StartCoroutine(_gameClient.ConnectToServer()));
-
-        if (disconnectButton != null)
-            disconnectButton.onClick.AddListener(() => _gameClient.Disconnect());
-
         if (sendChatButton != null)
             sendChatButton.onClick.AddListener(SendChat);
 
@@ -206,12 +199,6 @@ public class GameUIManager : MonoBehaviour
 
     private void UpdateConnectionUI(bool connected)
     {
-        if (connectButton != null)
-            connectButton.interactable = !connected;
-
-        if (disconnectButton != null)
-            disconnectButton.interactable = connected;
-
         if (sendChatButton != null)
             sendChatButton.interactable = connected;
 

@@ -50,7 +50,12 @@ public class GamePlayManager
     public System.Action<CombatResult> CombatEnded;
     public System.Action<PlanetConquerData> PlanetConquered;
     public System.Action<GameEndData> GameEnded;
-    public System.Action<ChatMessage> ChatMessageReceived;
+    
+    // UI_HUD 연동 이벤트
+    public System.Action<ChatMessage> ChatReceived; // ChatMessageReceived 대신 사용
+    public System.Action<bool, string> ConnectionChanged;
+    public System.Action<string, int> UserJoined;
+    public System.Action<string, int> UserLeft;
 
     // --- 현재 상태 ---
     private UserInfo? currentUser = null;
@@ -634,7 +639,7 @@ public class GamePlayManager
             if (chatMessage.MessageType == 1) // 1 = INGAME
             {
                 EmitStatusMessage($"[인게임 채팅] {chatMessage}");
-                ChatMessageReceived?.Invoke(chatMessage);
+                ChatReceived?.Invoke(chatMessage);
             }
         }
         catch (Exception ex)

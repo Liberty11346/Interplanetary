@@ -9,8 +9,8 @@ namespace CommonLib
         public int PlanetId;
         public int OwnerId;
         public Vector2 Position;
-        public float Minerals;
-        public float Gas;
+        public int Minerals;
+        public int Gas;
         public string Name;
         public int Supply;
     }

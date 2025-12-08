@@ -9,8 +9,6 @@ using System.Threading.Tasks;
 
 
 /// <summary>
-/// 
-/// 
 /// 게임 매니저 - 게임 상태 관리 및 이벤트 핸들링을 담당
 /// </summary>
 public class GameManager : MonoBehaviour
@@ -42,9 +40,9 @@ public class GameManager : MonoBehaviour
     public int debugMapId = 1; // 디버그용 맵 ID (F5로 로드)
 
     [Header("Managers")]
-    private GamePlayManager gamePlayManager;    // 게임 플레이 및 서버 통신 담당
-    public GameUIManager uiManager;             // UI 관리 담당
-    public VisualizationManager visualizationManager;  // 시각화 담당
+    public GamePlayManager gamePlayManager;    // 게임 플레이 및 서버 통신 담당
+    public UIGame uiGame;  // UI 시각화 담당
+    public UI_HUD uiHUD;   // UI HUD 담당 (신규)
 
     [Header("Game State")]
     private bool isGameStarted = false;
@@ -101,13 +99,6 @@ public class GameManager : MonoBehaviour
         if (isGameStarted)
         {
             gameTime += Time.deltaTime;
-
-            // 스냅샷 보간 처리 (가이드 권장사항)
-            if (_currentState != null && _previousState != null)
-            {
-                interpolationTime += Time.deltaTime / TICK_INTERVAL;
-                InterpolateFleetPositions(Mathf.Clamp01(interpolationTime));
-            }
         }
 
         HandleDebugInput();
@@ -121,14 +112,13 @@ public class GameManager : MonoBehaviour
         // GamePlayManager 싱글톤 참조
         gamePlayManager = GamePlayManager.Instance;
 
-        // 컴포넌트 자동 찾기
-        if (uiManager == null)
-            uiManager = FindFirstObjectByType<GameUIManager>();
+        if (uiGame == null)
+            uiGame = FindFirstObjectByType<UIGame>();
 
-        if (visualizationManager == null)
-            visualizationManager = FindFirstObjectByType<VisualizationManager>();
+        if (uiHUD == null)
+            uiHUD = FindFirstObjectByType<UI_HUD>();
 
-        Debug.Log($"[GameManager] gamePlayManager: {(gamePlayManager != null ? "찾음" : "없음")}, uiManager: {(uiManager != null ? "찾음" : "없음")}, visualizationManager: {(visualizationManager != null ? "찾음" : "없음")}");
+        Debug.Log($"[GameManager] gamePlayManager: {(gamePlayManager != null ? "찾음" : "없음")}, uiHUD: {(uiHUD != null ? "찾음" : "없음")}, uiGame: {(uiGame != null ? "찾음" : "없음")}");
 
         // GamePlayManager 이벤트 구독
         if (gamePlayManager != null)
@@ -142,6 +132,12 @@ public class GameManager : MonoBehaviour
 
             // 중요 이벤트 (효과, 사운드용)
             gamePlayManager.FleetSpawned += OnFleetSpawned;
+
+            // 채팅 및 시스템 이벤트 (UI_HUD 연동)
+            gamePlayManager.ChatReceived += OnChatReceived;
+            gamePlayManager.ConnectionChanged += OnConnectionChanged;
+            gamePlayManager.UserJoined += OnUserJoined;
+            gamePlayManager.UserLeft += OnUserLeft;
 
             // 에러 처리
             gamePlayManager.OnError += OnErrorOccurred;
@@ -264,26 +260,33 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void InitializeVisualization(GameStartData gameData)
     {
-        if (visualizationManager != null)
+        if (uiGame != null)
         {
-            // 테스트용 행성은 이미 UnifiedVisualizationManager의 Start에서 생성됨
-            // 실제 게임에서는 여기서 행성 데이터를 기반으로 시각화 요청
-
-            // 예: 실제 게임 데이터가 있는 경우 행성 생성
+            // UIGame으로 행성 생성
             if (gameData.Planets != null)
             {
                 foreach (var planet in gameData.Planets)
                 {
-                    visualizationManager.CreatePlanetWithData(planet.PlanetId, 
-                        new UnityEngine.Vector3(planet.Position.X, planet.Position.Y, 0), 
-                        planet);
+                    uiGame.CreateOrUpdatePlanet(planet.PlanetId, planet);
                 }
             }
 
             // 행성 간 연결선(경로) 그리기
             if (gameData.Routes != null && gameData.Routes.Length > 0)
             {
-                visualizationManager.CreatePlanetEdges(gameData.Routes);
+                foreach (var route in gameData.Routes)
+                {
+                    PathData pathData = new PathData
+                    {
+                        PathId = route.id,
+                        FromPlanetId = route.planetFromId,
+                        ToPlanetId = route.planetToId,
+                        FromPosition = new UnityEngine.Vector2(0, 0), // 위치는 행성 데이터에서 가져와야 함
+                        ToPosition = new UnityEngine.Vector2(0, 0),
+                        LineColor = UnityEngine.Color.white
+                    };
+                    uiGame.CreateOrUpdatePath(route.id, pathData);
+                }
                 Debug.Log($"행성 간 연결선 {gameData.Routes.Length}개 그려짐");
             }
 
@@ -291,6 +294,9 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 게임 종료 이벤트 처리
+    /// </summary>
     /// <summary>
     /// 게임 종료 이벤트 처리
     /// </summary>
@@ -316,12 +322,12 @@ public class GameManager : MonoBehaviour
         if (errorMessage.Contains("Fatal") || errorMessage.Contains("Critical"))
         {
             isGameStarted = false;
+        }
 
-            // UI 업데이트
-            if (uiManager != null)
-            {
-                // uiManager.ShowErrorMessage(errorMessage);
-            }
+        // UI 업데이트
+        if (uiHUD != null)
+        {
+            uiHUD.AddChatMessage("Error", errorMessage); // 채팅창에 에러 표시
         }
     }
 
@@ -336,6 +342,41 @@ public class GameManager : MonoBehaviour
         Debug.Log($"[Effect] Fleet {fleetData.FleetId} spawned at planet {fleetData.PlanetId} by player {fleetData.OwnerId}");
 
         // TODO: PlayFleetSpawnEffect(fleetData.PlanetId);
+    }
+
+    private void OnChatReceived(ChatMessage chatMessage)
+    {
+        if (uiHUD != null)
+        {
+            var timestamp = System.DateTimeOffset.FromUnixTimeMilliseconds(chatMessage.Timestamp).LocalDateTime;
+            uiHUD.AddChatMessage(chatMessage.SenderId, chatMessage.Message, timestamp);
+        }
+    }
+
+    private void OnConnectionChanged(bool connected, string message)
+    {
+        if (uiHUD != null)
+        {
+            uiHUD.UpdateConnectionStatus(connected);
+            uiHUD.AddChatMessage("System", message);
+        }
+    }
+
+    private void OnUserJoined(string userId, int playerCount)
+    {
+        if (uiHUD != null)
+        {
+            // 방 정보 표시는 제거됨
+            uiHUD.AddChatMessage("System", $"{userId} joined the room ({playerCount} players)");
+        }
+    }
+
+    private void OnUserLeft(string userId, int playerCount)
+    {
+        if (uiHUD != null)
+        {
+            uiHUD.AddChatMessage("System", $"{userId} left the room ({playerCount} players)");
+        }
     }
 
     #endregion
@@ -359,8 +400,14 @@ public class GameManager : MonoBehaviour
         // 순서 중요: 함대 → 행성 → 자원
         SyncFleets(tick);
         SyncPlanets(tick);
-        SyncResources(tick);
-        CheckGameState(tick);
+
+        // 자원 및 게임 상태 체크는 UI_HUD.UpdateGameState에서 처리됨
+
+        // UI HUD 업데이트
+        if (uiHUD != null)
+        {
+            uiHUD.UpdateGameState(_currentState, gameTime);
+        }
     }
 
     /// <summary>
@@ -383,37 +430,21 @@ public class GameManager : MonoBehaviour
                 // === 새로 생성된 함대 ===
                 if (!_spawnedFleetIds.Contains(fleetInfo.fleetId))
                 {
-                    int spawnPlanetId = FindClosestPlanet(new Vector2(fleetInfo.position.X, fleetInfo.position.Y));
-
-                    if (visualizationManager != null)
+                    if (uiGame != null)
                     {
-                        visualizationManager.CreateFleet(
-                            (int)fleetInfo.fleetId,
-                            fleetInfo.fleetType,
-                            fleetInfo.ownerId,
-                            spawnPlanetId
-                        );
+                        uiGame.CreateOrUpdateFleet((int)fleetInfo.fleetId, fleetInfo);
                     }
 
                     _spawnedFleetIds.Add(fleetInfo.fleetId);
-                    Debug.Log($"Fleet {fleetInfo.fleetId} spawned at planet {spawnPlanetId}");
+                    Debug.Log($"Fleet {fleetInfo.fleetId} spawned");
                 }
                 // === 기존 함대 업데이트 ===
                 else
                 {
-                    if (visualizationManager != null)
+                    if (uiGame != null)
                     {
-                        // 위치 업데이트 - Fleet GameObject의 Transform 직접 업데이트
-                        UnityEngine.Vector3 targetPos = new UnityEngine.Vector3(fleetInfo.position.X, fleetInfo.position.Y, 0);
-
-                        // ⭐ TODO: VisualizationManager에 SetFleetPosition 또는 GetFleet 메서드 추가 필요
-                        // 현재는 VisualizationManager에 해당 API가 없으므로 로그만 출력
-                        // visualizationManager.UpdateFleetPosition((int)fleetInfo.fleetId, targetPos);
-
-                        // HP 바 업데이트
-                        // ⭐ TODO: VisualizationManager에 UpdateFleetHealth 메서드 추가 필요
-                        // float hpRatio = fleetInfo.maxHP > 0 ? fleetInfo.HP / fleetInfo.maxHP : 1f;
-                        // visualizationManager.UpdateFleetHealth((int)fleetInfo.fleetId, hpRatio);
+                        // 위치 및 상태 업데이트
+                        uiGame.CreateOrUpdateFleet((int)fleetInfo.fleetId, fleetInfo);
                     }
 
                     // 상태 변화 감지
@@ -455,11 +486,11 @@ public class GameManager : MonoBehaviour
                 Debug.Log($"Fleet {fleetId} destroyed at ({prevFleet.position.X}, {prevFleet.position.Y})");
             }
 
-            // ⭐ TODO: VisualizationManager에 DestroyFleet 메서드 추가 필요
-            // if (visualizationManager != null)
-            // {
-            //     visualizationManager.DestroyFleet((int)fleetId);
-            // }
+            // ✅ 함대 파괴 애니메이션 실행
+            if (uiGame != null)
+            {
+                uiGame.RemoveFleet((int)fleetId);
+            }
 
             _spawnedFleetIds.Remove(fleetId);
         }
@@ -483,9 +514,10 @@ public class GameManager : MonoBehaviour
             // === 소유권 변경 감지 ===
             if (prevOwner != planet.owner)
             {
-                if (visualizationManager != null)
+                if (uiGame != null)
                 {
-                    visualizationManager.UpdatePlanetOwnership(planetId, planet.owner);
+                    // 행성 소유권 변경은 PlanetData 업데이트로 처리
+                    // uiGame.CreateOrUpdatePlanet에서 자동 처리됨
                 }
 
                 if (prevOwner != -1) // 초기화가 아닌 실제 점령
@@ -504,81 +536,9 @@ public class GameManager : MonoBehaviour
             }
 
             // === 점령 진행도 업데이트 ===
-            if (planet.conquestProgress > 0 && visualizationManager != null)
+            if (planet.conquestProgress > 0 && uiGame != null)
             {
                 UpdatePlanetConquestProgress(planetId, planet.conquestProgress);
-            }
-        }
-    }
-
-    /// <summary>
-    /// 자원 UI 업데이트
-    /// </summary>
-    private void SyncResources(long tick)
-    {
-        if (_currentState?.players == null || uiManager == null) return;
-
-        foreach (var player in _currentState.players)
-        {
-            if (player.id == myPlayerId)
-            {
-                // ⚠️ UI 직접 접근 대신 이벤트 발생 권장
-                if (uiManager.resourcesText != null)
-                {
-                    uiManager.resourcesText.text = $"Minerals: {player.Mineral:F1} | Gas: {player.Gas:F1} | Supply: {player.Supply}";
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// 게임 종료 확인
-    /// 가이드 명세: GameState.state 필드로 승자 판정
-    ///   state == 1: Faction 1 승리 (Player ID 0)
-    ///   state == -1: Faction 2 승리 (Player ID 1)
-    ///   state == 3: 게임 종료 (무승부 등)
-    /// </summary>
-    private void CheckGameState(long tick)
-    {
-        if (_currentState == null) return;
-
-        // 가이드 명세에 따른 승리 조건 판정
-        if (_currentState.state == 1)
-        {
-            // Faction 1 (Player 0) 승리
-            int winnerId = 0;
-            bool isWinner = winnerId == myPlayerId;
-
-            Debug.Log($"Game ended: Player {winnerId} wins!");
-
-            if (uiManager != null)
-            {
-                // uiManager.ShowGameResult(isWinner, winnerId);
-            }
-
-            // 게임 종료 이벤트는 이미 GamePlayManager에서 발생했을 것임
-        }
-        else if (_currentState.state == -1)
-        {
-            // Faction 2 (Player 1) 승리
-            int winnerId = 1;
-            bool isWinner = winnerId == myPlayerId;
-
-            Debug.Log($"Game ended: Player {winnerId} wins!");
-
-            if (uiManager != null)
-            {
-                // uiManager.ShowGameResult(isWinner, winnerId);
-            }
-        }
-        else if (_currentState.state == 3)
-        {
-            // 게임 종료 (무승부 등)
-            Debug.Log("Game ended: Draw or other end condition");
-
-            if (uiManager != null)
-            {
-                // uiManager.ShowGameResult(false, -1);
             }
         }
     }
@@ -586,63 +546,6 @@ public class GameManager : MonoBehaviour
     #endregion
 
     #region 헬퍼 메서드
-
-    /// <summary>
-    /// 스냅샷 보간 렌더링 (가이드 권장사항)
-    /// 부드러운 함대 이동을 위해 이전 위치와 현재 위치를 보간
-    /// </summary>
-    private void InterpolateFleetPositions(float t)
-    {
-        if (_currentState == null || _previousState == null || visualizationManager == null)
-            return;
-
-        if (_currentState.players == null || _previousState.players == null)
-            return;
-
-        // 각 플레이어의 함대를 순회
-        for (int playerIdx = 0; playerIdx < _currentState.players.Length; playerIdx++)
-        {
-            if (playerIdx >= _previousState.players.Length)
-                continue;
-
-            var currPlayer = _currentState.players[playerIdx];
-            var prevPlayer = _previousState.players[playerIdx];
-
-            if (currPlayer.fleets == null || prevPlayer.fleets == null)
-                continue;
-
-            // 각 함대의 위치를 보간
-            for (int fleetIdx = 0; fleetIdx < currPlayer.fleets.Length; fleetIdx++)
-            {
-                if (fleetIdx >= prevPlayer.fleets.Length)
-                    continue;
-
-                var currFleet = currPlayer.fleets[fleetIdx];
-                var prevFleet = prevPlayer.fleets[fleetIdx];
-
-                // 같은 함대인지 확인 (fleetId로 검증)
-                if (currFleet.fleetId != prevFleet.fleetId)
-                {
-                    // ID가 다르면 이전 상태에서 해당 함대를 찾아야 함
-                    var matchingPrevFleet = FindPreviousFleet(currFleet.fleetId);
-                    if (matchingPrevFleet == null)
-                        continue; // 새로 생성된 함대이므로 보간 불필요
-
-                    prevFleet = matchingPrevFleet;
-                }
-
-                // 위치 보간
-                Vector2 prevPos = new Vector2(prevFleet.position.X, prevFleet.position.Y);
-                Vector2 currPos = new Vector2(currFleet.position.X, currFleet.position.Y);
-                Vector2 interpolatedPos = Vector2.Lerp(prevPos, currPos, t);
-
-                // ⭐ TODO: VisualizationManager에 SetFleetPosition 메서드 추가 필요
-                // 현재는 API가 없으므로 주석 처리
-                // visualizationManager.SetFleetPosition((int)currFleet.fleetId,
-                //     new UnityEngine.Vector3(interpolatedPos.x, interpolatedPos.y, 0));
-            }
-        }
-    }
 
     private GamePlayManager.GameState.FleetInfo FindPreviousFleet(long fleetId)
     {
@@ -684,18 +587,8 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void UpdatePlanetConquestProgress(int planetId, float progress)
     {
-        // ⭐ TODO: VisualizationManager에 실제 UI 업데이트 메서드 추가 시 활성화
-        // visualizationManager.UpdateConquestProgress(planetId, progress / 100f);
-
-        // 임시: 진행도 로그 출력
-        if (progress >= 100f)
-        {
-            Debug.Log($"[GameManager] Planet {planetId} - Conquest complete (100%)");
-        }
-        else if (progress > 0f)
-        {
-            Debug.Log($"[GameManager] Planet {planetId} - Conquest progress: {progress:F1}%");
-        }
+        // UIGame으로 점령 진행도 업데이트
+        uiGame.UpdateConquestProgress(planetId, progress / 100f);
     }
 
     // 효과 메서드들 (구현 필요)
@@ -717,9 +610,9 @@ public class GameManager : MonoBehaviour
         Debug.Log("[GameManager] Setting up initial game state...");
 
         // UI 초기화
-        if (uiManager != null)
+        if (uiHUD != null)
         {
-            // uiManager.SetupGameUI(myPlayerId);
+            uiHUD.Initialize(myPlayerId, $"Player {myPlayerId}");
         }
 
         Debug.Log("[GameManager] Initial game state setup completed");
@@ -765,9 +658,9 @@ public class GameManager : MonoBehaviour
         Debug.Log($"Game Result: {resultMessage}");
 
         // UI에 결과 표시
-        if (uiManager != null)
+        if (uiHUD != null)
         {
-            // uiManager.ShowGameResult(isWinner, gameEndData);
+            uiHUD.ShowGameResult(isWinner, resultMessage);
         }
 
         // 종료 메시지 전송
@@ -784,12 +677,6 @@ public class GameManager : MonoBehaviour
     {
         // 디버그 정보 표시 토글
         Debug.Log("Debug info toggled");
-
-        // UI 디버그 정보 토글
-        if (uiManager != null)
-        {
-            // uiManager.ToggleDebugPanel();
-        }
     }
 
     /// <summary>
@@ -858,10 +745,56 @@ public class GameManager : MonoBehaviour
 
         OnFleetSelected?.Invoke(selectedFleetId);
         OnPlanetSelected?.Invoke(selectedPlanetId); // 행성 선택 해제 알림
+
+        // UI HUD에 선택 정보 전달
+        if (uiHUD != null)
+        {
+            uiHUD.OnFleetSelected(fleetId);
+        }
+
         Debug.Log($"Fleet {fleetId} selected. Ready for move command.");
     }
 
 
+
+    /// <summary>
+    /// 함대 생산 요청
+    /// </summary>
+    public void RequestProduction(int fleetTypeId)
+    {
+        if (selectedPlanetId == -1)
+        {
+            Debug.LogWarning("Cannot produce fleet: No planet selected");
+            return;
+        }
+
+        Debug.Log($"[GameManager] Requesting production: FleetType {fleetTypeId} at Planet {selectedPlanetId}");
+
+        // GamePlayManager를 통해 서버로 생산 요청 전송
+        // TODO: gamePlayManager.SendProductionRequest(selectedPlanetId, fleetTypeId);
+
+        // 임시: 로컬에서 쿨다운 처리 (서버 응답 시 처리하는 것이 정석)
+        if (uiHUD != null)
+        {
+            // uiHUD.StartCooldown(fleetTypeId, 5f); // 예시
+        }
+    }
+
+    /// <summary>
+    /// 선택 해제
+    /// </summary>
+    public void ClearSelection()
+    {
+        selectedFleetId = -1;
+        selectedPlanetId = -1;
+        OnFleetSelected?.Invoke(-1);
+        OnPlanetSelected?.Invoke(-1);
+
+        if (uiHUD != null)
+        {
+            uiHUD.OnFleetSelected(-1);
+        }
+    }
 
     /// <summary>
     /// 게임 시작 요청
@@ -1016,22 +949,10 @@ public class GameManager : MonoBehaviour
     #endregion
 
     /// <summary>
-    /// F5: 서버에게 맵(게임 시작)을 요청하는 흐름
-    /// - 방이 없으면 생성하고 자동 입장
-    /// - 방에 입장되면 READY(true)로 서버에 시작 요청
-    /// - 서버가 GAME_STARTED 브로드캐스트를 보내면 기존 OnGameStarted로 처리됨
-    /// </summary>
-    private void RequestMapFromServer()
-    {
-        // 기존 동작을 유지: 기본 맵 id=1로 로드합니다.
-        LoadMap(1);
-    }
-
-    /// <summary>
     /// 로컬 맵 로드 - 서버에서 맵 데이터를 받아옴
     /// </summary>
     private bool mapLoadRequested = false;
-    
+
     public void LoadMapLocal(int mapId)
     {
         // 한 번만 요청하도록 가드
@@ -1121,6 +1042,12 @@ public class GameManager : MonoBehaviour
             gamePlayManager.GameEnded -= OnGameEnded;
             gamePlayManager.FleetSpawned -= OnFleetSpawned;
             gamePlayManager.OnError -= OnErrorOccurred;
+
+            // 추가된 이벤트 구독 해제
+            gamePlayManager.ChatReceived -= OnChatReceived;
+            gamePlayManager.ConnectionChanged -= OnConnectionChanged;
+            gamePlayManager.UserJoined -= OnUserJoined;
+            gamePlayManager.UserLeft -= OnUserLeft;
         }
 
         // 컬렉션 정리
@@ -1135,23 +1062,4 @@ public class GameManager : MonoBehaviour
 
         Debug.Log("[GameManager] Resources cleaned up");
     }
-}
-
-/// <summary>
-/// 내부 데이터 캐싱을 위한 클래스들
-/// </summary>
-public class ResourceData
-{
-    public int Minerals;
-    public int Gas;
-    public int CurrentSupply;
-    public int MaxSupply;
-}
-
-public class FleetData
-{
-    public int FleetId;
-    public int OwnerId;
-    public int FleetType;
-    public int CurrentPlanetId;
 }

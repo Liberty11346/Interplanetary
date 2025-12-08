@@ -392,4 +392,135 @@ public class VisualizationManager : MonoBehaviour
             Debug.Log("Planet selection cleared.");
         }
     }
+
+    #region 가이드 명세 개선사항 API
+
+    /// <summary>
+    /// 함대 위치 설정 (보간 렌더링용)
+    /// GameManager의 InterpolateFleetPositions에서 호출
+    /// </summary>
+    /// <param name="fleetId">함대 ID</param>
+    /// <param name="position">새 위치</param>
+    public void SetFleetPosition(int fleetId, Vector3 position)
+    {
+        if (_fleets.TryGetValue(fleetId, out FleetUIButton fleet))
+        {
+            fleet.transform.position = position;
+        }
+        else
+        {
+            // 함대가 없는 경우는 정상 (새로 생성되었거나 파괴된 경우)
+            // Debug.LogWarning($"Cannot set position for fleet {fleetId}: fleet not found");
+        }
+    }
+
+    /// <summary>
+    /// 행성 점령 진행도 UI 업데이트
+    /// GameManager의 UpdatePlanetConquestProgress에서 호출
+    /// </summary>
+    /// <param name="planetId">행성 ID</param>
+    /// <param name="normalizedProgress">정규화된 진행도 (0.0 ~ 1.0)</param>
+    public void UpdateConquestProgress(int planetId, float normalizedProgress)
+    {
+        if (_planetButtons.TryGetValue(planetId, out PlanetUIButton planetButton))
+        {
+            // PlanetUIButton에 진행도 바가 있는 경우 업데이트
+            // 현재는 로그로만 출력하고, UI 요소가 추가되면 활성화
+            // planetButton.UpdateConquestProgress(normalizedProgress);
+
+            // 임시 로그 (UI 구현 전까지)
+            if (normalizedProgress >= 1.0f)
+            {
+                Debug.Log($"[VisualizationManager] Planet {planetId} conquest complete!");
+            }
+            else if (normalizedProgress > 0f)
+            {
+                Debug.Log($"[VisualizationManager] Planet {planetId} conquest: {normalizedProgress * 100f:F1}%");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 함대 HP 바 업데이트
+    /// GameManager의 SyncFleets에서 호출
+    /// </summary>
+    /// <param name="fleetId">함대 ID</param>
+    /// <param name="currentHp">현재 HP</param>
+    /// <param name="maxHp">최대 HP</param>
+    public void UpdateFleetHealth(int fleetId, float currentHp, float maxHp)
+    {
+        if (_fleets.TryGetValue(fleetId, out FleetUIButton fleet))
+        {
+            // FleetUIButton에 HP 바가 있는 경우 업데이트
+            // fleet.UpdateHealthBar(currentHp, maxHp);
+
+            // 임시: HP 비율 계산 (UI 구현 전까지)
+            float healthRatio = maxHp > 0 ? currentHp / maxHp : 0;
+
+            // HP가 낮아지면 로그 출력 (디버그용)
+            if (healthRatio < 0.3f && healthRatio > 0)
+            {
+                Debug.Log($"[VisualizationManager] Fleet {fleetId} health critical: {currentHp:F0}/{maxHp:F0} ({healthRatio * 100f:F0}%)");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 함대 파괴 (애니메이션 포함)
+    /// GamePlayManager의 DetectFleetChanges에서 호출
+    /// </summary>
+    /// <param name="fleetId">파괴할 함대 ID</param>
+    public void DestroyFleet(int fleetId)
+    {
+        if (_fleets.TryGetValue(fleetId, out FleetUIButton fleet))
+        {
+            // 1. 파괴 애니메이션 시작 (코루틴)
+            StartCoroutine(DestroyFleetCoroutine(fleetId, fleet));
+        }
+        else
+        {
+            Debug.LogWarning($"Cannot destroy fleet {fleetId}: fleet not found");
+        }
+    }
+
+    /// <summary>
+    /// 함대 파괴 코루틴 (애니메이션 + GameObject 제거)
+    /// </summary>
+    private IEnumerator DestroyFleetCoroutine(int fleetId, FleetUIButton fleet)
+    {
+        GameObject fleetObj = fleet.gameObject;
+        Vector3 originalScale = fleetObj.transform.localScale;
+
+        // 1. 페이드 아웃 애니메이션 (0.5초)
+        float duration = 0.5f;
+        float elapsedTime = 0f;
+
+        while (elapsedTime < duration)
+        {
+            elapsedTime += Time.deltaTime;
+            float progress = elapsedTime / duration;
+
+            // 크기 축소
+            fleetObj.transform.localScale = Vector3.Lerp(originalScale, Vector3.zero, progress);
+
+            // SpriteRenderer가 있으면 투명도 감소
+            var spriteRenderer = fleetObj.GetComponent<SpriteRenderer>();
+            if (spriteRenderer != null)
+            {
+                Color color = spriteRenderer.color;
+                color.a = 1f - progress;
+                spriteRenderer.color = color;
+            }
+
+            yield return null;
+        }
+
+        // 2. GameObject 제거
+        _fleets.Remove(fleetId);
+        Destroy(fleetObj);
+
+        Debug.Log($"[VisualizationManager] Fleet {fleetId} destroyed with animation");
+    }
+
+    #endregion
 }
