@@ -168,14 +168,21 @@ public class UI_HUD : MonoBehaviour
     {
         if (gameState == null || gameState.players == null) return;
 
-        // 1. 자원 및 상태 업데이트
+        // 1. 자원, 상태, 생산 대기열 업데이트
         foreach (var player in gameState.players)
         {
             if (player.id == myPlayerId)
             {
+                // 자원 업데이트
                 if (playerResource != null)
                 {
                     playerResource.UpdateResources((int)player.Gas, (int)player.Mineral, player.Supply, player.Supply);
+                }
+
+                // 생산 대기열 업데이트
+                if (productionButtons != null && player.productionQueue != null)
+                {
+                    productionButtons.UpdateProductionQueue(player.productionQueue);
                 }
                 break;
             }

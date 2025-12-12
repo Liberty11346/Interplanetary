@@ -418,7 +418,8 @@ public class GameManager : MonoBehaviour
         // 보간 타이머 리셋 (새로운 스냅샷 수신)
         interpolationTime = 0f;
 
-        // 순서 중요: 함대 → 행성 → 자원
+        // 순서 중요: 생산 대기열 → 함대 → 행성 → 자원
+        SyncProductionQueue(tick);
         SyncFleets(tick);
         SyncPlanets(tick);
 
@@ -429,6 +430,122 @@ public class GameManager : MonoBehaviour
         {
             uiHUD.UpdateGameState(_currentState, gameTime);
         }
+    }
+
+    /// <summary>
+    /// 생산 대기열 동기화: 생산 시작, 진행, 완료 감지
+    /// </summary>
+    private void SyncProductionQueue(long tick)
+    {
+        if (_currentState?.players == null) return;
+
+        foreach (var player in _currentState.players)
+        {
+            if (player.id != myPlayerId) continue; // 내 플레이어만 체크
+
+            var currentQueue = player.productionQueue;
+            var previousQueue = _previousState?.players != null ?
+                GetPlayerFromState(_previousState, player.id)?.productionQueue : null;
+
+            // === 생산 시작 감지 ===
+            if (currentQueue != null && currentQueue.Length > 0)
+            {
+                foreach (var queueItem in currentQueue)
+                {
+                    // 이전에 없던 생산 항목이 추가됨
+                    bool isNewProduction = previousQueue == null ||
+                        !ContainsProduction(previousQueue, queueItem.fleetId);
+
+                    if (isNewProduction)
+                    {
+                        Debug.Log($"[GameManager] Production started: FleetType {queueItem.fleetType}, " +
+                                  $"Total time: {queueItem.totalTicks * 0.05f:F1}s");
+                    }
+
+                    // 생산 진행 중 로그 (선택적, 너무 많이 출력되지 않도록 10% 단위로)
+                    if (previousQueue != null)
+                    {
+                        var prevItem = FindProduction(previousQueue, queueItem.fleetId);
+                        if (prevItem != null)
+                        {
+                            float prevProgress = prevItem.progress;
+                            float currProgress = queueItem.progress;
+
+                            // 10% 단위로 로그 출력
+                            int prevPercentile = (int)(prevProgress * 10);
+                            int currPercentile = (int)(currProgress * 10);
+
+                            if (currPercentile > prevPercentile)
+                            {
+                                Debug.Log($"[GameManager] Production progress: FleetType {queueItem.fleetType}, " +
+                                          $"{currProgress * 100:F0}% ({queueItem.remainingTicks * 0.05f:F1}s remaining)");
+                            }
+                        }
+                    }
+                }
+            }
+
+            // === 생산 완료 감지 ===
+            if (previousQueue != null && previousQueue.Length > 0)
+            {
+                foreach (var prevItem in previousQueue)
+                {
+                    // 이전에 있던 생산 항목이 현재 대기열에 없음 = 완료됨
+                    bool isCompleted = currentQueue == null ||
+                        !ContainsProduction(currentQueue, prevItem.fleetId);
+
+                    if (isCompleted)
+                    {
+                        Debug.Log($"[GameManager] ✅ Production completed: FleetType {prevItem.fleetType}");
+                    }
+                }
+            }
+
+            break; // 내 플레이어만 처리하므로 종료
+        }
+    }
+
+    /// <summary>
+    /// 생산 대기열에서 특정 fleetId를 가진 항목이 있는지 확인
+    /// </summary>
+    private bool ContainsProduction(GamePlayManager.GameState.ProductionQueueInfo[] queue, long fleetId)
+    {
+        if (queue == null) return false;
+
+        foreach (var item in queue)
+        {
+            if (item.fleetId == fleetId) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 생산 대기열에서 특정 fleetId를 가진 항목 찾기
+    /// </summary>
+    private GamePlayManager.GameState.ProductionQueueInfo? FindProduction(
+        GamePlayManager.GameState.ProductionQueueInfo[] queue, long fleetId)
+    {
+        if (queue == null) return null;
+
+        foreach (var item in queue)
+        {
+            if (item.fleetId == fleetId) return item;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// GameState에서 특정 플레이어 찾기
+    /// </summary>
+    private GamePlayManager.GameState.Player GetPlayerFromState(GamePlayManager.GameState state, int playerId)
+    {
+        if (state?.players == null) return null;
+
+        foreach (var player in state.players)
+        {
+            if (player.id == playerId) return player;
+        }
+        return null;
     }
 
     /// <summary>
@@ -457,7 +574,7 @@ public class GameManager : MonoBehaviour
                     }
 
                     _spawnedFleetIds.Add(fleetInfo.fleetId);
-                    Debug.Log($"Fleet {fleetInfo.fleetId} spawned");
+                    Debug.Log($"[GameManager] Fleet {fleetInfo.fleetId} (Type: {fleetInfo.fleetType}) spawned for Player {player.id}");
                 }
                 // === 기존 함대 업데이트 ===
                 else
@@ -781,21 +898,16 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void RequestProduction(int fleetTypeId)
     {
-        if (selectedPlanetId == -1)
-        {
-            Debug.LogWarning("Cannot produce fleet: No planet selected");
-            return;
-        }
-
-        Debug.Log($"[GameManager] Requesting production: FleetType {fleetTypeId} at Planet {selectedPlanetId}");
+        Debug.Log($"[GameManager] Requesting production: FleetType {fleetTypeId} at Planet {MyHomePlanetId}");
 
         // GamePlayManager를 통해 서버로 생산 요청 전송
-        // TODO: gamePlayManager.SendProductionRequest(selectedPlanetId, fleetTypeId);
+
+        gamePlayManager.RequestProduceFleet(fleetTypeId);
 
         // 임시: 로컬에서 쿨다운 처리 (서버 응답 시 처리하는 것이 정석)
         if (uiHUD != null)
         {
-            // uiHUD.StartCooldown(fleetTypeId, 5f); // 예시
+           //uiHUD.StartCooldown(fleetTypeId, 5f); // 예시
         }
     }
 

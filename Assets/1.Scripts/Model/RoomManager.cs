@@ -216,6 +216,20 @@ public class RoomManager
                 UpdateCashedRooms(rooms);
                 OnRoomListUpdated?.Invoke(rooms.ToList());
                 EmitStatusMessage($"생성된 룸 ID: {roomId}, 슬롯: {slot}");
+
+                // ⭐ 방 생성 시 방에 자동 입장 처리
+                // 생성된 방 정보를 찾아서 currentRoom에 설정
+                var createdRoom = rooms.FirstOrDefault(r => r.RoomId == roomId);
+                if (createdRoom.RoomId != null)
+                {
+                    currentRoom = createdRoom;
+                    isInRoom = true;
+                    EmitStatusMessage($"방 생성 및 자동 입장: {roomId}");
+                }
+
+                // ⭐ 방 생성 후 방 정보 새로고침하여 유저 목록 가져오기
+                await RequestJoinedRoomInfoRefresh();
+
                 OnRoomCreateSuccess?.Invoke(roomId, slot);
                 return true;
             }

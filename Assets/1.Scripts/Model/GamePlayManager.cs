@@ -546,7 +546,8 @@ public class GamePlayManager
                     Gas = origPlayer.Gas,
                     Mineral = origPlayer.Mineral,
                     Supply = origPlayer.Supply,
-                    fleets = origPlayer.fleets != null ? new GameState.FleetInfo[origPlayer.fleets.Length] : null
+                    fleets = origPlayer.fleets != null ? new GameState.FleetInfo[origPlayer.fleets.Length] : null,
+                    productionQueue = origPlayer.productionQueue != null ? new GameState.ProductionQueueInfo[origPlayer.productionQueue.Length] : null
                 };
 
                 // Fleets 복사
@@ -565,6 +566,24 @@ public class GamePlayManager
                             HP = origFleet.HP,
                             maxHP = origFleet.maxHP,
                             target = origFleet.target
+                        };
+                    }
+                }
+
+                // ProductionQueue 복사
+                if (origPlayer.productionQueue != null)
+                {
+                    for (int j = 0; j < origPlayer.productionQueue.Length; j++)
+                    {
+                        var origQueue = origPlayer.productionQueue[j];
+                        copy.players[i].productionQueue[j] = new GameState.ProductionQueueInfo
+                        {
+                            fleetId = origQueue.fleetId,
+                            fleetType = origQueue.fleetType,
+                            ownerId = origQueue.ownerId,
+                            remainingTicks = origQueue.remainingTicks,
+                            totalTicks = origQueue.totalTicks,
+                            progress = origQueue.progress
                         };
                     }
                 }
@@ -672,7 +691,7 @@ public class GamePlayManager
         ValidateNetworkConnection();
 
         var protocol = new Protocol(ProtocolType.SUBMIT_COMMAND)
-            .AddParam("tick", 0L)  // 서버가 자동 계산
+            .AddParam("tick", ++_currentTick)  // 서버가 자동 계산하지 않음.
             .AddParam("target", fleetType);
 
         var response = await SafeSendAsync(protocol, $"함대 생산 요청 (타입: {fleetType})");
@@ -847,17 +866,28 @@ public class GamePlayManager
             public int Gas;
             public int Mineral;
             public int Supply;
+            public ProductionQueueInfo[] productionQueue;  // 생산 대기열
+        }
+
+        public class ProductionQueueInfo
+        {
+            public long fleetId;           // 생산 중인 함대 ID
+            public int fleetType;          // 함대 타입 (production_info.target_id)
+            public int ownerId;            // 소유자 ID (UI 구분용)
+            public int remainingTicks;     // 남은 생산 시간 (틱)
+            public int totalTicks;         // 총 생산 시간 (틱)
+            public float progress;         // 진행도 (0.0 ~ 1.0)
         }
 
         public class FleetInfo
         {
-            public long fleetId;        // 함대 고유 ID (추적용)
-            public int fleetType;       // 함대 타입 (시각화용)
-            public int ownerId;         // 소유자 ID
+            public long fleetId;            // 함대 고유 ID (추적용)
+            public int fleetType;           // 함대 타입 (시각화용)
+            public int ownerId;             // 소유자 ID
             public CommonLib.Vector2 position;
-            public int state = 0;   // 0 = Idle, 1 = battle. 2 = move
+            public int state = 0;           // 0 = Idle, 1 = battle. 2 = move
             public float HP = 0;
-            public float maxHP = 0;     // 최대 HP (HP바 표시용)
+            public float maxHP = 0;         // 최대 HP (HP바 표시용)
             public CommonLib.Vector2 target;    // idle일때는 무시
         }
 
@@ -869,6 +899,7 @@ public class GamePlayManager
         }
 
         public int state = 0; // 0 = 준비. 1 = 진행중, 2 = 종료
+        public long tick = 0;
 
         public Player[] players;
         public Planet[] planets;

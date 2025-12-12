@@ -139,6 +139,59 @@ public class UIProductionButtons : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 생산 대기열 정보 업데이트
+    /// </summary>
+    public void UpdateProductionQueue(GamePlayManager.GameState.ProductionQueueInfo[] productionQueue)
+    {
+        // 먼저 모든 버튼의 생산 상태 초기화
+        foreach (var btn in productionButtons)
+        {
+            if (btn != null)
+            {
+                btn.CompleteProduction();
+            }
+        }
+
+        // 생산 대기열이 비어있으면 종료
+        if (productionQueue == null || productionQueue.Length == 0)
+        {
+            return;
+        }
+
+        // 생산 대기열의 각 항목을 해당 버튼에 업데이트
+        foreach (var queueItem in productionQueue)
+        {
+            if (buttonsByFleetType.TryGetValue(queueItem.fleetType, out UIProductionBtn btn))
+            {
+                btn.UpdateProduction(queueItem.progress, queueItem.remainingTicks);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 특정 함대 타입의 생산 진행도 업데이트
+    /// </summary>
+    public void UpdateProductionProgress(int fleetTypeId, float progress, int remainingTicks)
+    {
+        if (buttonsByFleetType.TryGetValue(fleetTypeId, out UIProductionBtn btn))
+        {
+            btn.UpdateProduction(progress, remainingTicks);
+        }
+    }
+
+    /// <summary>
+    /// 특정 함대 타입의 생산 완료 처리
+    /// </summary>
+    public void CompleteProduction(int fleetTypeId)
+    {
+        if (buttonsByFleetType.TryGetValue(fleetTypeId, out UIProductionBtn btn))
+        {
+            btn.CompleteProduction();
+            Debug.Log($"[UIProductionButtons] Production completed for fleet type {fleetTypeId}");
+        }
+    }
+
     private void OnDestroy()
     {
         // 이벤트 구독 해제
