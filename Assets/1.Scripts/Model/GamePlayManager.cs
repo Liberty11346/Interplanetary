@@ -6,6 +6,7 @@ using CommonLib;
 using CommonLib.TableData;
 using System.Linq;
 using UnityEngine.InputSystem;
+using CommonLib.Commands;
 
 /// <summary>
 /// 게임 진행 및 서버 통신 담당 (RoomManager 기반 추출)
@@ -691,6 +692,7 @@ public class GamePlayManager
         ValidateNetworkConnection();
 
         var protocol = new Protocol(ProtocolType.SUBMIT_COMMAND)
+            .AddParam("commandType", GameCommandType.ProduceFleet)
             .AddParam("tick", ++_currentTick)  // 서버가 자동 계산하지 않음.
             .AddParam("target", fleetType);
 
@@ -707,7 +709,8 @@ public class GamePlayManager
         ValidateNetworkConnection();
 
         var protocol = new Protocol(ProtocolType.SUBMIT_COMMAND)
-            .AddParam("tick", 0L)  // 서버가 자동 계산
+            .AddParam("commandType", GameCommandType.MoveFleet)
+            .AddParam("tick", ++_currentTick)  // 서버가 자동 계산
             .AddParam("target_fleet", fleetId)
             .AddParam("target_planet", targetPlanetId);
 
