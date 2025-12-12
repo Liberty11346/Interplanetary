@@ -92,7 +92,7 @@ public class PlanetUIButton : MonoBehaviour
         // 함대 생산 요청 (플릿 타입 0으로 통일)
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.CommandFleetSpawn(0);
+
         }
     }
 

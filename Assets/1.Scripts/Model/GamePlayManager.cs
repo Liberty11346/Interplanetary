@@ -690,7 +690,6 @@ public class GamePlayManager
     public async Task<bool> RequestProduceFleet(int fleetType)
     {
         ValidateNetworkConnection();
-
         var protocol = new Protocol(ProtocolType.SUBMIT_COMMAND)
             .AddParam("commandType", GameCommandType.ProduceFleet)
             .AddParam("tick", ++_currentTick)  // 서버가 자동 계산하지 않음.
@@ -708,6 +707,7 @@ public class GamePlayManager
     {
         ValidateNetworkConnection();
 
+        
         var protocol = new Protocol(ProtocolType.SUBMIT_COMMAND)
             .AddParam("commandType", GameCommandType.MoveFleet)
             .AddParam("tick", ++_currentTick)  // 서버가 자동 계산
