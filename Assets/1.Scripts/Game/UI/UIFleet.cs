@@ -98,7 +98,7 @@ public class UIFleet : MonoBehaviour
 
     private UnityEngine.Vector2 ConvertCVectorToRect(CommonLib.Vector2 vector2)
     {
-        const float uiScale = 40f; // 맵 스케일에 맞게 조정 필요
+        const float uiScale = 0.5f; // 맵 스케일에 맞게 조정 필요
         return new UnityEngine.Vector2(vector2.X * uiScale, vector2.Y * uiScale);
     }
 

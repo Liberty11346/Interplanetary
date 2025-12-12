@@ -311,7 +311,7 @@ public class GameManager : MonoBehaviour
 
     private UnityEngine.Vector2 ConvertCVectorToRect(CommonLib.Vector2 vector2)
     {
-        const float uiScale = 40f; // 맵 스케일에 맞게 조정 필요
+        const float uiScale = 0.5f; // 맵 스케일에 맞게 조정 필요
         return new UnityEngine.Vector2(vector2.X * uiScale, vector2.Y * uiScale);
     }
 
@@ -903,12 +903,6 @@ public class GameManager : MonoBehaviour
         // GamePlayManager를 통해 서버로 생산 요청 전송
 
         gamePlayManager.RequestProduceFleet(fleetTypeId);
-
-        // 임시: 로컬에서 쿨다운 처리 (서버 응답 시 처리하는 것이 정석)
-        if (uiHUD != null)
-        {
-           //uiHUD.StartCooldown(fleetTypeId, 5f); // 예시
-        }
     }
 
     /// <summary>

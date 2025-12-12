@@ -143,6 +143,14 @@ public class UI_HUD : MonoBehaviour
         }
     }
 
+    public void StartCooldown(int fleetTypeId, float duration)
+    {
+        if (productionButtons != null)
+        {
+            productionButtons.StartCooldown(fleetTypeId, duration);
+        }
+    }
+
     #endregion
 
     /// <summary>
