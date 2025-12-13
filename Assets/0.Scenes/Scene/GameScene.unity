@@ -2402,7 +2402,7 @@ MonoBehaviour:
   button: {fileID: 774446379}
   progressOverlay: {fileID: 1657235092}
   progressText: {fileID: 1806139594}
-  fleetTypeId: 4
+  fleetTypeId: 3
   shortcutKey: 114
 --- !u!1 &454147244
 GameObject:
@@ -5728,7 +5728,7 @@ MonoBehaviour:
   button: {fileID: 333813526}
   progressOverlay: {fileID: 98827132}
   progressText: {fileID: 473100108}
-  fleetTypeId: 1
+  fleetTypeId: 0
   shortcutKey: 113
 --- !u!1 &1319772869
 GameObject:
@@ -5991,7 +5991,7 @@ MonoBehaviour:
   button: {fileID: 1152492094}
   progressOverlay: {fileID: 606185942}
   progressText: {fileID: 40222876}
-  fleetTypeId: 3
+  fleetTypeId: 2
   shortcutKey: 101
 --- !u!1 &1534824947
 GameObject:
@@ -7900,7 +7900,7 @@ MonoBehaviour:
   button: {fileID: 1866285936}
   progressOverlay: {fileID: 968341775}
   progressText: {fileID: 842009985}
-  fleetTypeId: 2
+  fleetTypeId: 1
   shortcutKey: 119
 --- !u!1 &1966772245
 GameObject:
