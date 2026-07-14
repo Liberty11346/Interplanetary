@@ -140,6 +140,7 @@ namespace CommonLib
 
     public struct WaittingRoomUser
     {
+        [Newtonsoft.Json.JsonProperty("userInfo")]
         public UserInfo UserInfo { get; set; }
         public bool IsReady { get; set; }
     }

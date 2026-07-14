@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Deterministic, no-Unity console verification of the PRODUCTION change-calculation
+    (GamePlayManager.GameStateChangeSet.Create). It REFERENCES the real Assembly-CSharp output
+    and constructs real production types; it never copies or reimplements the algorithm.
+    This is a worker-owned project (NOT a Unity-generated project).
+
+    Durable dependency: the reference resolves against an in-repo, stable, git-ignored path
+    (no volatile Unity build-cache path). On a clean ordinary checkout, first run the documented
+    prerequisite build that outputs Assembly-CSharp into .\ClientStateTests\ref, then run this project.
+    Exact copy/paste commands are in .analysis/t0_client_state_tests.md.
+
+    Why reference (not recompile) the algorithm: Assembly-CSharp.csproj is a Unity-generated
+    project with an EXPLICIT (non-globbed) compile list that must not be edited and cannot be
+    regenerated without the Unity editor; moving the pure change-set types into a separate source
+    file would break the `dotnet build .\Assembly-CSharp.csproj` verification. Referencing the built
+    assembly keeps the game build intact while still exercising the exact production code.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>ClientStateTests</AssemblyName>
+    <RootNamespace>ClientStateTests</RootNamespace>
+    <!-- Assembly-CSharp is compiled from Unity source (net4.7.1). Load it as a metadata reference. -->
+    <AutomaticallyUseReferenceAssemblyPackages>false</AutomaticallyUseReferenceAssemblyPackages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Stable, in-repo, git-ignored reference produced by the documented prerequisite build. -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>ref\Assembly-CSharp.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

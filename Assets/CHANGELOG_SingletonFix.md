@@ -1,5 +1,9 @@
 # 수정 사항 정리 (2025-11-28)
 
+> **참고**: 이 문서는 2025-11-28 에 적용된 싱글톤 코어 로직 개선 (Domain Reload 문제 해결) 을 문서화합니다.
+> 현재 branch 에는 추가 초기화 (GameSceneInitializer, ApplicationLifecycleManager) 가 적용되어 있습니다.
+> 전체 아키텍처 개요는 루트 `README.md` 와 `Assets/README.md` 를 참조하세요.
+
 ## 1. `SingletonBase.cs` (싱글톤 코어 로직 개선)
 
 **목적:** Unity 에디터의 Domain Reload 문제 해결 및 애플리케이션 종료 시 인스턴스 접근 안전성 확보.
@@ -30,7 +34,7 @@ namespace CommonLib
 ```
 
 ### 1.2. `Instance` 프로퍼티 로직 변경
-종료 중(`IsQuitting`)이라도 이미 생성된 인스턴스가 있다면 반환하도록 변경하여, 종료 과정에서 발생하는 `NullReferenceException`을 방지했습니다.
+종료 중 (`IsQuitting`) 이라도 이미 생성된 인스턴스가 있다면 반환하도록 변경하여, 종료 과정에서 발생하는 `NullReferenceException` 을 방지했습니다.
 
 **[Before]**
 ```csharp
@@ -92,7 +96,7 @@ namespace CommonLib
 
 ## 2. `SimpleConnectionTest.cs` (안전장치 추가)
 
-**목적:** `ClientServerHandler.Instance`가 `null`일 경우 발생하는 크래시를 방지하고 명확한 에러 로그를 출력.
+**목적:** `ClientServerHandler.Instance` 가 `null` 일 경우 발생하는 크래시를 방지하고 명확한 에러 로그를 출력.
 
 ### 2.1. `ConnectToServer` 메서드
 

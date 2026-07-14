@@ -98,3 +98,10 @@ Desktop.ini
 Assets/7.TextMesh Pro/Examples & Extras/Resources/Fonts & Materials/Oswald Bold SDF.asset
 Assets/7.TextMesh Pro/Examples & Extras/Resources/Fonts & Materials/Roboto-Bold SDF.asset
 .claude/
+
+# ClientStateTests: worker-authored headless test project (NOT a Unity-generated csproj).
+# Keep the project file tracked (narrow exception to the global *.csproj rule above),
+# but ignore its build output and the prerequisite Assembly-CSharp reference copy.
+!ClientStateTests/ClientStateTests.csproj
+ClientStateTests/bin/
+ClientStateTests/ref/

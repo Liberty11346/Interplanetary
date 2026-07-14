@@ -70,8 +70,9 @@ public class GameManager : MonoBehaviour
     public GameStartData _gameStartData;
 
     // === 동적 데이터 (GameState에서 매 틱 수신) ===
+    // 현재 틱 스냅샷만 보관한다. "이전 스냅샷/변경 정보"는 GamePlayManager가 계산한
+    // GameStateChangeSet(OnGameStateChanged 인자)로부터 소비한다 (PreviousGameState 직접 접근 없음).
     private GamePlayManager.GameState _currentState;
-    private GamePlayManager.GameState _previousState;
 
     // === 엔티티 추적 ===
     private HashSet<long> _spawnedFleetIds = new HashSet<long>();
@@ -124,8 +125,9 @@ public class GameManager : MonoBehaviour
         // GamePlayManager 이벤트 구독
         if (gamePlayManager != null)
         {
-            // ⭐ State-Sync: GameState 수신 이벤트 (핵심)
-            gamePlayManager.GameStateReceived += OnGameStateReceived;
+            // ⭐ State-Sync: 단일 변경 집합 알림 (GAME_STATE당 1회 렌더). 기존 GameStateReceived는
+            //    호환성 위해 GamePlayManager가 계속 발생시키지만, 이중 렌더 방지를 위해 여기서 구독하지 않는다.
+            gamePlayManager.GameStateChanged += OnGameStateChanged;
 
             // 게임 시작/종료 이벤트
             gamePlayManager.GameStarted += OnGameStarted;
@@ -232,7 +234,7 @@ public class GameManager : MonoBehaviour
         _spawnedFleetIds.Clear();
         _planetOwners.Clear();
         _currentState = null;
-        _previousState = null;
+        // 이전 스냅샷 초기화는 단일 소유자(GamePlayManager.HandleGameStarted)에서 수행한다.
         MyHomePlanetId = -1;
 
         // 행성 정적 데이터 저장 (위치는 변하지 않음)
@@ -354,7 +356,7 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// 함대 생성 이벤트 처리 - 효과 및 사운드용
-    /// ⭐ State-Sync 모델에서는 함대 생성/파괴는 OnGameStateReceived에서 처리
+    /// ⭐ State-Sync 모델에서는 함대 생성/파괴는 OnGameStateChanged에서 처리
     /// 이 이벤트는 생성 효과/사운드만 담당
     /// </summary>
     private void OnFleetSpawned(FleetSpawnData fleetData)
@@ -405,23 +407,25 @@ public class GameManager : MonoBehaviour
     #region State-Sync 핸들러
 
     /// <summary>
-    /// ⭐ GameState 수신 핸들러 (매 틱마다 호출 - 50ms)
+    /// ⭐ GameState 변경 집합 핸들러 (GAME_STATE당 1회 호출).
+    /// GamePlayManager가 계산한 단일 변경 집합을 소비하여 UIGame/HUD를 정확히 1회 갱신한다.
+    /// 이전 스냅샷은 changeSet가 제공하므로 GamePlayManager.PreviousGameState에 직접 접근하지 않는다.
     /// </summary>
-    private void OnGameStateReceived(GamePlayManager.GameState newState, long tick)
+    private void OnGameStateChanged(GamePlayManager.GameStateChangeSet changeSet)
     {
-        if (newState == null) return;
+        if (changeSet == null || changeSet.Current == null) return;
 
-        _previousState = _currentState;
-        _currentState = newState;
-        _currentTick = tick;
+        // 현재 스냅샷만 보관하고, 이 GAME_STATE를 정확히 1회 렌더링한다.
+        _currentState = changeSet.Current;
+        _currentTick = changeSet.ServerTick;
 
         // 보간 타이머 리셋 (새로운 스냅샷 수신)
         interpolationTime = 0f;
 
         // 순서 중요: 생산 대기열 → 함대 → 행성 → 자원
-        SyncProductionQueue(tick);
-        SyncFleets(tick);
-        SyncPlanets(tick);
+        SyncProductionQueue(changeSet);
+        SyncFleets(changeSet);
+        SyncPlanets(changeSet.ServerTick);
 
         // 자원 및 게임 상태 체크는 UI_HUD.UpdateGameState에서 처리됨
 
@@ -435,7 +439,7 @@ public class GameManager : MonoBehaviour
     /// <summary>
     /// 생산 대기열 동기화: 생산 시작, 진행, 완료 감지
     /// </summary>
-    private void SyncProductionQueue(long tick)
+    private void SyncProductionQueue(GamePlayManager.GameStateChangeSet changeSet)
     {
         if (_currentState?.players == null) return;
 
@@ -444,8 +448,10 @@ public class GameManager : MonoBehaviour
             if (player.id != myPlayerId) continue; // 내 플레이어만 체크
 
             var currentQueue = player.productionQueue;
-            var previousQueue = _previousState?.players != null ?
-                GetPlayerFromState(_previousState, player.id)?.productionQueue : null;
+            // 이전 스냅샷은 변경 집합(changeSet.Previous)이 제공한다. (직접 PreviousGameState 접근 없음)
+            var previousSnapshot = changeSet?.Previous;
+            var previousQueue = previousSnapshot?.players != null ?
+                GetPlayerFromState(previousSnapshot, player.id)?.productionQueue : null;
 
             // === 생산 시작 감지 ===
             if (currentQueue != null && currentQueue.Length > 0)
@@ -549,88 +555,63 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 함대 동기화: 생성, 이동, 파괴 감지
+    /// 함대 동기화: 변경 집합(Added/Updated/Removed)을 소비하여 생성/갱신/파괴를 1회 반영.
     /// </summary>
-    private void SyncFleets(long tick)
+    private void SyncFleets(GamePlayManager.GameStateChangeSet changeSet)
     {
-        if (_currentState?.players == null) return;
-
-        var currentFleetIds = new HashSet<long>();
-
-        foreach (var player in _currentState.players)
+        // === 새로 생성된 함대 ===
+        foreach (var fleetInfo in changeSet.AddedFleets)
         {
-            if (player.fleets == null) continue;
-
-            foreach (var fleetInfo in player.fleets)
+            if (uiGame != null)
             {
-                currentFleetIds.Add(fleetInfo.fleetId);
+                uiGame.CreateOrUpdateFleet((int)fleetInfo.fleetId, fleetInfo);
+            }
 
-                // === 새로 생성된 함대 ===
-                if (!_spawnedFleetIds.Contains(fleetInfo.fleetId))
+            _spawnedFleetIds.Add(fleetInfo.fleetId);
+            Debug.Log($"[GameManager] Fleet {fleetInfo.fleetId} (Type: {fleetInfo.fleetType}) spawned for Player {fleetInfo.ownerId}");
+        }
+
+        // === 기존 함대 업데이트 (+ 상태 전이 효과) ===
+        foreach (var change in changeSet.UpdatedFleets)
+        {
+            var fleetInfo = change.Current;
+            var prevFleet = change.Previous;
+
+            if (uiGame != null)
+            {
+                // 위치 및 상태 업데이트
+                uiGame.CreateOrUpdateFleet((int)fleetInfo.fleetId, fleetInfo);
+            }
+
+            if (prevFleet != null)
+            {
+                // Idle → Battle
+                if (prevFleet.state == 0 && fleetInfo.state == 1)
                 {
-                    if (uiGame != null)
-                    {
-                        uiGame.CreateOrUpdateFleet((int)fleetInfo.fleetId, fleetInfo);
-                    }
-
-                    _spawnedFleetIds.Add(fleetInfo.fleetId);
-                    Debug.Log($"[GameManager] Fleet {fleetInfo.fleetId} (Type: {fleetInfo.fleetType}) spawned for Player {player.id}");
+                    PlayBattleStartEffect(new Vector2(fleetInfo.position.X, fleetInfo.position.Y));
+                    Debug.Log($"Fleet {fleetInfo.fleetId} entered combat!");
                 }
-                // === 기존 함대 업데이트 ===
-                else
+                // Battle → Idle
+                else if (prevFleet.state == 1 && fleetInfo.state == 0)
                 {
-                    if (uiGame != null)
-                    {
-                        // 위치 및 상태 업데이트
-                        uiGame.CreateOrUpdateFleet((int)fleetInfo.fleetId, fleetInfo);
-                    }
-
-                    // 상태 변화 감지
-                    var prevFleet = FindPreviousFleet(fleetInfo.fleetId);
-                    if (prevFleet != null)
-                    {
-                        // Idle → Battle
-                        if (prevFleet.state == 0 && fleetInfo.state == 1)
-                        {
-                            PlayBattleStartEffect(new Vector2(fleetInfo.position.X, fleetInfo.position.Y));
-                            Debug.Log($"Fleet {fleetInfo.fleetId} entered combat!");
-                        }
-                        // Battle → Idle
-                        else if (prevFleet.state == 1 && fleetInfo.state == 0)
-                        {
-                            PlayBattleEndEffect(new Vector2(fleetInfo.position.X, fleetInfo.position.Y));
-                        }
-                    }
+                    PlayBattleEndEffect(new Vector2(fleetInfo.position.X, fleetInfo.position.Y));
                 }
             }
         }
 
         // === 파괴된 함대 ===
-        var destroyedFleetIds = new List<long>();
-        foreach (var fleetId in _spawnedFleetIds)
+        foreach (var prevFleet in changeSet.RemovedFleets)
         {
-            if (!currentFleetIds.Contains(fleetId))
-            {
-                destroyedFleetIds.Add(fleetId);
-            }
-        }
-
-        foreach (var fleetId in destroyedFleetIds)
-        {
-            var prevFleet = FindPreviousFleet(fleetId);
-            if (prevFleet != null)
-            {
-                PlayDestroyEffect(new Vector2(prevFleet.position.X, prevFleet.position.Y));
-                Debug.Log($"Fleet {fleetId} destroyed at ({prevFleet.position.X}, {prevFleet.position.Y})");
-            }
+            PlayDestroyEffect(new Vector2(prevFleet.position.X, prevFleet.position.Y));
+            Debug.Log($"Fleet {prevFleet.fleetId} destroyed at ({prevFleet.position.X}, {prevFleet.position.Y})");
 
             // ✅ 함대 파괴 애니메이션 실행
             if (uiGame != null)
             {
-                uiGame.RemoveFleet((int)fleetId);
+                uiGame.RemoveFleet((int)prevFleet.fleetId);
             }
 
-            _spawnedFleetIds.Remove(fleetId);
+            _spawnedFleetIds.Remove(prevFleet.fleetId);
         }
     }
 
@@ -684,22 +665,6 @@ public class GameManager : MonoBehaviour
     #endregion
 
     #region 헬퍼 메서드
-
-    private GamePlayManager.GameState.FleetInfo FindPreviousFleet(long fleetId)
-    {
-        if (_previousState == null || _previousState.players == null) return null;
-
-        foreach (var player in _previousState.players)
-        {
-            if (player.fleets == null) continue;
-
-            foreach (var fleet in player.fleets)
-            {
-                if (fleet.fleetId == fleetId) return fleet;
-            }
-        }
-        return null;
-    }
 
     private int FindClosestPlanet(Vector2 position)
     {
@@ -1162,7 +1127,7 @@ public class GameManager : MonoBehaviour
         // 이벤트 구독 해제
         if (gamePlayManager != null)
         {
-            gamePlayManager.GameStateReceived -= OnGameStateReceived;
+            gamePlayManager.GameStateChanged -= OnGameStateChanged;
             gamePlayManager.GameStarted -= OnGameStarted;
             gamePlayManager.GameEnded -= OnGameEnded;
             gamePlayManager.FleetSpawned -= OnFleetSpawned;
@@ -1182,7 +1147,6 @@ public class GameManager : MonoBehaviour
 
         // 상태 초기화
         _currentState = null;
-        _previousState = null;
         _gameStartData = default;
 
         Debug.Log("[GameManager] Resources cleaned up");

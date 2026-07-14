@@ -40,19 +40,6 @@ namespace CommonLib
 
         // --- NetworkManager 인스턴스 ---
         private NetworkManager networkManager =  new NetworkManager();
-        private ProtocolHandler protocolHandler = new ProtocolHandler();
-
-        // --- UI 관련 프로토콜 목록 ---
-        private readonly int[] uiProtocols = new int[]
-        {
-            (int)ProtocolType.RESPONSE,
-            (int)ProtocolType.BRODCAST_SYSTEM,
-            (int)ProtocolType.BRODCAST_CHAT_MESSAGE,
-            (int)ProtocolType.USER_JOINED,
-            (int)ProtocolType.USER_LEFT,
-            (int)ProtocolType.ROOM_INFO_CHANGED,
-            (int)ProtocolType.ROOM_CLOSED
-        };
 
         // --- 이벤트 (자식 클래스들이 구독 가능) ---
         public event Action<Protocol> OnSystemBroadcastEvent;
@@ -156,46 +143,9 @@ namespace CommonLib
         /// </summary>
         public void RegisterHandler(int protocolType, ProtocolHandler.ProtocolHandlerDelegate handler)
         {
-            // ProtocolHandler용 핸들러를 NetworkManager용으로 래핑
-            networkManager.RegisterHandler(protocolType, async (protocol) =>
-            {
-                if (IsUIProtocol(protocolType))
-                {
-                    // UI 관련 프로토콜은 메인 스레드에서 실행
-                    MainThreadDispatcher.Enqueue(() =>
-                    {
-                        // 메인 스레드에서 동기적으로 실행
-                        try
-                        {
-                            // handler가 async인 경우 ConfigureAwait(false)로 처리
-                            var task = handler(protocol);
-                            if (!task.IsCompleted)
-                            {
-                                // 비동기 작업을 Fire-and-Forget으로 처리
-                                task.ContinueWith(t =>
-                                {
-                                    if (t.Exception != null)
-                                    {
-                                        Debug.LogError($"[ClientServerHandler] UI 핸들러 비동기 실행 중 오류: {t.Exception.GetBaseException().Message}");
-                                    }
-                                }, TaskContinuationOptions.OnlyOnFaulted);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.LogError($"[ClientServerHandler] UI 핸들러 실행 중 오류: {ex.Message}");
-                        }
-                    });
-                }
-                else
-                {
-                    // 백그라운드에서 실행
-                    await handler(protocol);
-                }
-            });
-            
-            // 기존 ProtocolHandler에도 등록 (하위 호환성)
-            protocolHandler.RegisterHandler(protocolType, handler);
+            // NetworkManager가 Unity SynchronizationContext에서 핸들러를 실행한다.
+            // 별도 레지스트리나 추가 메인 스레드 마샬링을 두지 않는다.
+            networkManager.RegisterHandler(protocolType, handler);
         }
 
         /// <summary>
@@ -204,7 +154,6 @@ namespace CommonLib
         public void UnregisterHandler(int protocolType)
         {
             networkManager.UnregisterHandler(protocolType);
-            protocolHandler.UnregisterHandler(protocolType);
         }
 
         /// <summary>
@@ -325,14 +274,6 @@ namespace CommonLib
             RegisterHandler((int)ProtocolType.BRODCAST_SYSTEM, HandleBroadcastSystem);
             RegisterHandler((int)ProtocolType.USER_JOINED, HandleUserJoined);
             RegisterHandler((int)ProtocolType.USER_LEFT, HandleUserLeft);
-        }
-
-        /// <summary>
-        /// UI 프로토콜 여부 확인
-        /// </summary>
-        private bool IsUIProtocol(int protocolType)
-        {
-            return Array.IndexOf(uiProtocols, protocolType) >= 0;
         }
 
         // --- 이벤트 핸들러 ---

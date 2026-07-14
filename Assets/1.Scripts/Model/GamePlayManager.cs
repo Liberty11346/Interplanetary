@@ -45,6 +45,7 @@ public class GamePlayManager
     // --- 게임 플레이 관련 이벤트들 ---
     public System.Action<GameStartData> GameStarted;
     public System.Action<GameState, long> GameStateReceived;  // ⭐ 새 이벤트: GameState 수신
+    public System.Action<GameStateChangeSet> GameStateChanged; // ⭐ GAME_STATE당 1회 계산되는 단일 변경 집합 알림
     public System.Action<ResourceUpdate> ResourcesUpdated;
     public System.Action<FleetSpawnData> FleetSpawned;
     public System.Action<FleetMoveData> FleetMoving;
@@ -271,16 +272,23 @@ public class GamePlayManager
 
         _currentTick = serverTick;
 
-        // ⭐ GameState 수신 이벤트 발생 (GameManager가 상태 동기화에 사용)
+        // GAME_STATE 1건에 대해 변경 집합을 정확히 한 번 계산한다.
+        // (UnityEngine 호출이 없는 순수 데이터 계산 → 수신/메인스레드 경계에 안전)
+        var changeSet = GameStateChangeSet.Create(_previousGameState, gameState, serverTick);
+
+        // ⭐ 호환성 알림: 기존 GameStateReceived (구독자가 없어도 유지)
         GameStateReceived?.Invoke(gameState, serverTick);
 
-        // 이전 상태와 비교하여 변화 감지 (개별 이벤트 발생)
+        // ⭐ 단일 변경 집합 알림: GameManager가 이걸 구독하여 프레젠테이션을 정확히 1회 갱신
+        GameStateChanged?.Invoke(changeSet);
+
+        // 이전 상태와 비교하여 개별 도메인 이벤트 발생 (호환성 유지 - 구독자가 없다고 삭제하지 않음)
         if (_previousGameState != null)
         {
             DetectAndFireEvents(_previousGameState, gameState);
         }
 
-        // 현재 상태 저장
+        // 현재 상태 저장 (다음 틱의 diff 기준)
         _previousGameState = DeepCopyGameState(gameState);
 
         await Task.CompletedTask;
@@ -618,6 +626,10 @@ public class GamePlayManager
     {
         EmitStatusMessage("게임이 시작되었습니다!");
 
+        // 이전 GameState 스냅샷의 단일 소유자로서, 새 게임(재시작 포함)의 diff 기준을 초기화한다.
+        // GAME_STATE는 GAME_STARTED 이후에 도착하므로, 새 게임의 첫 틱은 이전 스냅샷 없이(null) 처리된다.
+        _previousGameState = null;
+
         // 게임 시작 이벤트 발생 (GameManager가 구독하여 처리)
         if (_gameStartData.HasValue)
         {
@@ -906,5 +918,208 @@ public class GamePlayManager
 
         public Player[] players;
         public Planet[] planets;
+    }
+
+    // --- GAME_STATE 변경 계약 (불변/읽기 전용) ---
+
+    /// <summary>
+    /// GAME_STATE 1건에 대해 정확히 한 번 계산되는 불변(읽기 전용) 변경 집합.
+    /// 현재/이전 스냅샷과, 소스가 신뢰 가능한 근거를 제공하는 변경만 노출한다:
+    /// - 함대는 fleetId 로, 행성 소유권은 planetId 로, 자원은 player id 로 식별한다.
+    /// - 이동/전투는 UpdatedFleets 의 state/position/HP 전이로 표현하며(신뢰 가능),
+    ///   신뢰할 수 없는 출발/도착 행성 id·전투 상대 pairing 은 만들어내지 않는다.
+    /// - MaxSupply 는 원본(GameState.Player)에 없으므로 표현하지 않는다.
+    /// 계산은 UnityEngine 호출 없이 순수 데이터만 다룬다(수신 스레드 안전).
+    /// </summary>
+    public sealed class GameStateChangeSet
+    {
+        public GameState Current { get; }
+        public GameState Previous { get; }
+        public long ServerTick { get; }
+        public bool HasPrevious => Previous != null;
+
+        public IReadOnlyList<GameState.FleetInfo> AddedFleets { get; }
+        public IReadOnlyList<GameState.FleetInfo> RemovedFleets { get; }
+        public IReadOnlyList<FleetChange> UpdatedFleets { get; }
+        public IReadOnlyList<GameState.Planet> AddedPlanets { get; }
+        public IReadOnlyList<GameState.Planet> RemovedPlanets { get; }
+        public IReadOnlyList<PlanetOwnerChange> PlanetOwnerChanges { get; }
+        public IReadOnlyList<ResourceChange> ResourceChanges { get; }
+
+        private GameStateChangeSet(
+            GameState previous, GameState current, long serverTick,
+            IReadOnlyList<GameState.FleetInfo> added,
+            IReadOnlyList<GameState.FleetInfo> removed,
+            IReadOnlyList<FleetChange> updated,
+            IReadOnlyList<GameState.Planet> addedPlanets,
+            IReadOnlyList<GameState.Planet> removedPlanets,
+            IReadOnlyList<PlanetOwnerChange> planetOwnerChanges,
+            IReadOnlyList<ResourceChange> resourceChanges)
+        {
+            Previous = previous;
+            Current = current;
+            ServerTick = serverTick;
+            AddedFleets = added;
+            RemovedFleets = removed;
+            UpdatedFleets = updated;
+            AddedPlanets = addedPlanets;
+            RemovedPlanets = removedPlanets;
+            PlanetOwnerChanges = planetOwnerChanges;
+            ResourceChanges = resourceChanges;
+        }
+
+        /// <summary>
+        /// 이전/현재 스냅샷으로부터 변경 집합을 계산한다. previous == null 이면 첫(기준 없는) 스냅샷으로 취급하여
+        /// 현재의 모든 함대를 Added 로, 소유권/자원 변경은 없음으로 처리한다.
+        /// (프로덕션 변경 계산 로직 — 테스트는 이 메서드를 직접 참조/호출한다.)
+        /// </summary>
+        public static GameStateChangeSet Create(GameState previous, GameState current, long serverTick = 0)
+        {
+            var added = new List<GameState.FleetInfo>();
+            var removed = new List<GameState.FleetInfo>();
+            var updated = new List<FleetChange>();
+            var addedPlanets = new List<GameState.Planet>();
+            var removedPlanets = new List<GameState.Planet>();
+            var planetOwnerChanges = new List<PlanetOwnerChange>();
+            var resourceChanges = new List<ResourceChange>();
+
+            // --- 함대 diff (fleetId 기준) ---
+            var prevFleets = BuildFleetMap(previous);
+            var currFleets = BuildFleetMap(current);
+            foreach (var kv in currFleets)
+            {
+                if (prevFleets.TryGetValue(kv.Key, out var prevFleet))
+                    updated.Add(new FleetChange(prevFleet, kv.Value));
+                else
+                    added.Add(kv.Value);
+            }
+            foreach (var kv in prevFleets)
+            {
+                if (!currFleets.ContainsKey(kv.Key))
+                    removed.Add(kv.Value);
+            }
+
+            // --- 행성 diff (planetId 기준: 추가/제거는 항상, 소유권 변경은 매칭된 경우) ---
+            var prevPlanets = BuildPlanetMap(previous);
+            var currPlanets = BuildPlanetMap(current);
+            foreach (var kv in currPlanets)
+            {
+                if (prevPlanets.TryGetValue(kv.Key, out var prevPlanet))
+                {
+                    if (prevPlanet.owner != kv.Value.owner)
+                        planetOwnerChanges.Add(new PlanetOwnerChange(kv.Key, prevPlanet.owner, kv.Value.owner));
+                }
+                else
+                {
+                    addedPlanets.Add(kv.Value);
+                }
+            }
+            foreach (var kv in prevPlanets)
+            {
+                if (!currPlanets.ContainsKey(kv.Key))
+                    removedPlanets.Add(kv.Value);
+            }
+
+            // --- 자원 diff (player id 기준, 이전 스냅샷이 있을 때만 신뢰 가능) ---
+            if (previous != null && previous.players != null && current != null && current.players != null)
+            {
+                var prevPlayers = BuildPlayerMap(previous);
+                foreach (var cpl in current.players)
+                {
+                    if (cpl == null) continue;
+                    if (prevPlayers.TryGetValue(cpl.id, out var pp) &&
+                        (pp.Gas != cpl.Gas || pp.Mineral != cpl.Mineral || pp.Supply != cpl.Supply))
+                    {
+                        resourceChanges.Add(new ResourceChange(cpl.id, cpl.Gas, cpl.Mineral, cpl.Supply));
+                    }
+                }
+            }
+
+            return new GameStateChangeSet(
+                previous, current, serverTick, added, removed, updated,
+                addedPlanets, removedPlanets, planetOwnerChanges, resourceChanges);
+        }
+
+        private static Dictionary<long, GameState.FleetInfo> BuildFleetMap(GameState state)
+        {
+            var map = new Dictionary<long, GameState.FleetInfo>();
+            if (state == null || state.players == null) return map;
+            foreach (var player in state.players)
+            {
+                if (player == null || player.fleets == null) continue;
+                foreach (var fleet in player.fleets)
+                {
+                    if (fleet == null) continue;
+                    map[fleet.fleetId] = fleet; // 동일 id 방어적으로 마지막 우선
+                }
+            }
+            return map;
+        }
+
+        private static Dictionary<int, GameState.Planet> BuildPlanetMap(GameState state)
+        {
+            var map = new Dictionary<int, GameState.Planet>();
+            if (state == null || state.planets == null) return map;
+            foreach (var planet in state.planets)
+            {
+                if (planet == null) continue;
+                map[planet.planetId] = planet;
+            }
+            return map;
+        }
+
+        private static Dictionary<int, GameState.Player> BuildPlayerMap(GameState state)
+        {
+            var map = new Dictionary<int, GameState.Player>();
+            if (state == null || state.players == null) return map;
+            foreach (var player in state.players)
+            {
+                if (player == null) continue;
+                map[player.id] = player;
+            }
+            return map;
+        }
+    }
+
+    /// <summary>양쪽 스냅샷에 존재하는 함대의 이전/현재 정보(신뢰 가능: fleetId).</summary>
+    public readonly struct FleetChange
+    {
+        public GameState.FleetInfo Previous { get; }
+        public GameState.FleetInfo Current { get; }
+        public FleetChange(GameState.FleetInfo previous, GameState.FleetInfo current)
+        {
+            Previous = previous;
+            Current = current;
+        }
+    }
+
+    /// <summary>행성 소유권 변경(신뢰 가능: planetId).</summary>
+    public readonly struct PlanetOwnerChange
+    {
+        public int PlanetId { get; }
+        public int PreviousOwner { get; }
+        public int NewOwner { get; }
+        public PlanetOwnerChange(int planetId, int previousOwner, int newOwner)
+        {
+            PlanetId = planetId;
+            PreviousOwner = previousOwner;
+            NewOwner = newOwner;
+        }
+    }
+
+    /// <summary>플레이어 자원 변경(신뢰 가능: Gas/Mineral/Supply).</summary>
+    public readonly struct ResourceChange
+    {
+        public int PlayerId { get; }
+        public int Gas { get; }
+        public int Mineral { get; }
+        public int Supply { get; }
+        public ResourceChange(int playerId, int gas, int mineral, int supply)
+        {
+            PlayerId = playerId;
+            Gas = gas;
+            Mineral = mineral;
+            Supply = supply;
+        }
     }
 }
